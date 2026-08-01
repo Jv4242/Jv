@@ -130,6 +130,7 @@
     border: none; border-radius: 999px; padding: 12px 22px;
     font-family: inherit; font-size: 1.05rem; font-weight: bold; cursor: pointer;
   }
+  #voicepick { margin-top: 10px; font-size: .92rem; font-weight: normal; }
   #awardscr { justify-content: flex-start; overflow-y: auto; padding-top: 28px; }
   .awtitle { font-size: clamp(1.6rem, 6vw, 2.2rem); text-shadow: 0 3px 0 rgba(0,0,0,.3); }
   .credbig { background: rgba(255,255,255,.15); border-radius: 999px; padding: 8px 20px; margin: 12px 0 4px; font-size: 1.15rem; font-weight: bold; }
@@ -166,6 +167,7 @@
     <button class="agecard" data-age="C"><span class="big">🦁</span>Ages 7–8<small>math · spelling · numbers</small></button>
   </div>
   <button class="trophybtn" id="trophies2">🏆 My Trophies</button>
+  <button class="trophybtn" id="voicepick">🗣️ Voice</button>
 </div>
 
 <!-- TROPHY ROOM -->
@@ -261,22 +263,49 @@ function cleanSpeech(s) {
     .replace(/[\p{Extended_Pictographic}️⃣]/gu, "")
     .replace(/\s+/g, " ").trim();
 }
+/* rank installed voices by how warm/natural they sound; robotic defaults score lowest */
+let chosenVoiceName = null;
+try { chosenVoiceName = localStorage.getItem("sr_voice_name"); } catch (e) {}
+function voiceScore(v) {
+  const n = v.name.toLowerCase();
+  let s = 0;
+  if (/natural|neural/.test(n)) s += 80;              // Edge's Azure neural voices
+  if (/enhanced|premium/.test(n)) s += 50;            // Apple's high-quality voices
+  if (/\bana\b|kids|child/.test(n)) s += 45;          // child voices — great for this game
+  if (/jenny|aria|michelle|emma|ava|zoe|samantha|allison|karen|nicky/.test(n)) s += 30;
+  if (/google/.test(n)) s += 25;                       // Chrome's Google voices beat eSpeak
+  if (/female/.test(n)) s += 10;
+  if (/^en[-_]us/i.test(v.lang)) s += 8;
+  if (/espeak|robosoft/.test(n)) s -= 50;
+  return s;
+}
+function englishVoices() {
+  try {
+    return speechSynthesis.getVoices()
+      .filter(v => /^en/i.test(v.lang))
+      .sort((a, b) => voiceScore(b) - voiceScore(a));
+  } catch (e) { return []; }
+}
 function getVoice() {
-  const vs = speechSynthesis.getVoices();
-  return vs.find(v => v.lang.startsWith("en") && /female|child|kids|Google US/i.test(v.name))
-    || vs.find(v => v.lang.startsWith("en")) || null;
+  const vs = englishVoices();
+  if (!vs.length) return null;
+  if (chosenVoiceName) { const m = vs.find(v => v.name === chosenVoiceName); if (m) return m; }
+  return vs[0];
 }
 function stopSpeech() { try { speechSynthesis.cancel(); } catch (e) {} }
-/* some browsers return an empty voice list until voiceschanged fires */
-try { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices(); } catch (e) {}
+/* some browsers return an empty voice list until voiceschanged fires (handler set below) */
+try { speechSynthesis.getVoices(); } catch (e) {}
 function speak(text) {
   if (!voiceOn || !text) return;
   try {
     if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
     speechSynthesis.resume(); // iOS Safari can leave synthesis stuck in a paused state
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-US"; u.rate = 0.9; u.pitch = 1.1;
     const v = getVoice(); if (v) u.voice = v;
+    const kidVoice = v && /\bana\b|kids|child/i.test(v.name);
+    u.lang = "en-US";
+    u.rate = 0.85;                    // gentle teacher pace
+    u.pitch = kidVoice ? 1.0 : 1.06;  // over-pitching is what sounds robotic
     const btn = $("hear");
     u.onstart = () => btn.classList.add("speaking");
     u.onend = u.onerror = () => btn.classList.remove("speaking");
@@ -596,7 +625,28 @@ function renderAwards() {
 }
 function refreshHome() {
   $("trophies2").textContent = `🏆 My Trophies (${save.awards.length}/${AWARDS.length}) · 🪙 ${save.credits}`;
+  refreshVoicePick();
 }
+function prettyVoiceName(v) {
+  return v.name.replace(/^(Microsoft|Google|Apple)\s+/i, "").replace(/\s*\(?Online \(Natural\)\)?/i, "")
+    .replace(/\s*-\s*English.*$/i, "").replace(/\s*\(.*\)$/, "").trim();
+}
+function refreshVoicePick() {
+  const v = getVoice();
+  $("voicepick").textContent = "🗣️ Voice: " + (v ? prettyVoiceName(v) : "Default") + " · tap to change";
+}
+$("voicepick").onclick = () => {
+  const vs = englishVoices().slice(0, 8);
+  if (!vs.length) { speak("Hi friend! Let's play!"); return; }
+  const cur = getVoice();
+  const i = vs.findIndex(v => cur && v.name === cur.name);
+  const next = vs[(i + 1) % vs.length];
+  chosenVoiceName = next.name;
+  try { localStorage.setItem("sr_voice_name", chosenVoiceName); } catch (e) {}
+  refreshVoicePick();
+  speak(`Hi friend! I'm ${prettyVoiceName(next)}, and I love playing Star Rescue with you!`);
+};
+try { speechSynthesis.onvoiceschanged = () => { speechSynthesis.getVoices(); refreshVoicePick(); }; } catch (e) {}
 
 /* ============ game state ============ */
 let age = "A", stars = 0, level = 1, rescuedInLevel = 0, current = null, locked = false;

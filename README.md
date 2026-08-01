@@ -16,6 +16,10 @@ bubbles — answer questions to pop the bubbles and rescue them all!
 - **Voice narration**: every question is read aloud (Web Speech API), so
   pre-readers always know what to do. A 🔊 button on the card repeats the
   question; a HUD toggle mutes the voice (remembered between visits).
+  The game auto-selects the warmest voice installed on the device (neural
+  "Natural" and "Enhanced" voices beat the robotic defaults) and speaks at a
+  gentle teacher pace; a 🗣️ picker on the start screen cycles through the
+  best available voices — each introduces itself — and the choice sticks.
 - **Gets harder as you play**: each level bumps the difficulty — bigger
   numbers, more answer choices, and new question forms unlock (subtraction,
   division, lowercase letters, two-step word problems, countdown patterns).
