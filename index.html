@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Star Rescue — Learn &amp; Play (Ages 3–8)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Comic Sans MS", "Chalkboard SE", "Segoe UI", system-ui, sans-serif;
+    background: linear-gradient(180deg, #1a1a4e 0%, #2d2d7a 45%, #4b3a8f 100%);
+    color: #fff;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  /* twinkling star field */
+  .sky { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+  .sky span { position: absolute; color: #fff; opacity: .7; animation: twinkle 2.4s ease-in-out infinite; }
+  @keyframes twinkle { 0%,100%{opacity:.25; transform:scale(.8)} 50%{opacity:.9; transform:scale(1.15)} }
+
+  .screen { position: relative; z-index: 1; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 16px; text-align: center; }
+  .screen.on { display: flex; }
+
+  /* ---------- start screen ---------- */
+  .title { font-size: clamp(2rem, 8vw, 3.4rem); text-shadow: 0 4px 0 rgba(0,0,0,.3); }
+  .rocket { font-size: clamp(3.5rem, 14vw, 6rem); animation: float 3s ease-in-out infinite; }
+  @keyframes float { 0%,100%{transform:translateY(0) rotate(-8deg)} 50%{transform:translateY(-14px) rotate(8deg)} }
+  .tagline { font-size: clamp(1rem, 4vw, 1.3rem); margin: 10px 0 26px; opacity: .9; max-width: 480px; line-height: 1.4; }
+  .agegrid { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  .agecard {
+    background: linear-gradient(180deg, #ffdf6b, #ffb347);
+    color: #5b3200; border: none; border-radius: 22px;
+    padding: 18px 22px; min-width: 130px; cursor: pointer;
+    font-family: inherit; font-size: 1.05rem; font-weight: bold;
+    box-shadow: 0 6px 0 #c77f1f; transition: transform .12s;
+  }
+  .agecard:active { transform: translateY(4px); box-shadow: 0 2px 0 #c77f1f; }
+  .agecard .big { display: block; font-size: 2.2rem; margin-bottom: 4px; }
+  .agecard small { display: block; font-weight: normal; margin-top: 4px; font-size: .78rem; }
+
+  /* ---------- game screen ---------- */
+  #game { justify-content: flex-start; padding-top: 12px; }
+  .hud { width: 100%; max-width: 560px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 1rem; }
+  .hud .pill { background: rgba(255,255,255,.15); border-radius: 999px; padding: 6px 14px; white-space: nowrap; }
+  .hud button { background: rgba(255,255,255,.15); color:#fff; border:none; border-radius:999px; padding:6px 14px; font-family:inherit; font-size:1rem; cursor:pointer; }
+
+  .crewbar { width: 100%; max-width: 560px; min-height: 44px; margin: 10px 0 4px; display:flex; align-items:center; justify-content:center; gap: 4px; flex-wrap: wrap; font-size: 1.6rem; }
+  .crewbar .slot { opacity: .25; }
+  .crewbar .saved { opacity: 1; animation: pop .45s; }
+  @keyframes pop { 0%{transform:scale(0)} 70%{transform:scale(1.4)} 100%{transform:scale(1)} }
+
+  .bubblewrap { margin: 6px 0 2px; height: clamp(84px, 18vw, 120px); display:flex; align-items:center; justify-content:center; }
+  .bubble {
+    width: clamp(80px, 17vw, 112px); height: clamp(80px, 17vw, 112px);
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 30%, rgba(255,255,255,.85), rgba(160,220,255,.25) 42%, rgba(120,180,255,.18));
+    border: 3px solid rgba(255,255,255,.6);
+    display:flex; align-items:center; justify-content:center;
+    font-size: clamp(2.4rem, 9vw, 3.4rem);
+    animation: bob 2.2s ease-in-out infinite;
+  }
+  @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+  .bubble.freed { animation: fly .9s forwards; }
+  @keyframes fly { 30%{transform:scale(1.25)} 100%{transform:translateY(-140px) scale(.4); opacity:0} }
+
+  .qcard {
+    background: rgba(255,255,255,.96); color: #333a6e;
+    border-radius: 24px; padding: 18px 20px; width: 100%; max-width: 560px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35); margin-top: 8px;
+  }
+  .qtext { font-size: clamp(1.15rem, 4.6vw, 1.5rem); font-weight: bold; line-height: 1.35; min-height: 2.6em; display:flex; align-items:center; justify-content:center; }
+  .qvisual { font-size: clamp(1.8rem, 7vw, 2.6rem); margin: 8px 0 4px; line-height: 1.4; word-spacing: 8px; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  .opt {
+    background: linear-gradient(180deg, #7bd6ff, #3ba7f0); color: #063a63;
+    border: none; border-radius: 18px; padding: 16px 8px; cursor: pointer;
+    font-family: inherit; font-size: clamp(1.3rem, 5.5vw, 1.9rem); font-weight: bold;
+    box-shadow: 0 5px 0 #1d6db1; transition: transform .1s; min-height: 68px;
+  }
+  .opt:active { transform: translateY(3px); box-shadow: 0 2px 0 #1d6db1; }
+  .opt.wrong { animation: shake .4s; background: linear-gradient(180deg,#d9d9d9,#b5b5b5); box-shadow: 0 5px 0 #8a8a8a; color:#666; pointer-events: none; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+  .opt.right { background: linear-gradient(180deg,#8ef58a,#3ecf4a); box-shadow: 0 5px 0 #1f8f2c; }
+  .cheer { min-height: 1.6em; font-size: 1.1rem; margin-top: 10px; font-weight: bold; color: #e8508a; }
+
+  /* ---------- celebration overlay ---------- */
+  #party { position: fixed; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center; background: rgba(20,15,60,.88); }
+  #party.on { display: flex; }
+  .partycard { text-align: center; padding: 24px; }
+  .partycard .newpal { font-size: 5rem; animation: pop .6s; }
+  .partycard h2 { font-size: 2rem; margin: 10px 0; }
+  .partycard p { font-size: 1.15rem; margin-bottom: 20px; }
+  .bigbtn {
+    background: linear-gradient(180deg, #8ef58a, #3ecf4a); color: #0c4514;
+    border: none; border-radius: 22px; padding: 16px 34px; cursor: pointer;
+    font-family: inherit; font-size: 1.3rem; font-weight: bold; box-shadow: 0 6px 0 #1f8f2c;
+  }
+  .bigbtn:active { transform: translateY(4px); box-shadow: 0 2px 0 #1f8f2c; }
+
+  .confetti { position: fixed; top: -20px; z-index: 9; font-size: 1.4rem; pointer-events: none; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
+</style>
+</head>
+<body>
+<div class="sky" id="sky"></div>
+
+<!-- START -->
+<div class="screen on" id="start">
+  <div class="rocket">🚀</div>
+  <h1 class="title">⭐ Star Rescue ⭐</h1>
+  <p class="tagline">Zuzu's space friends are stuck in bubbles!<br>Answer questions to pop the bubbles and rescue them all. 🛸</p>
+  <div class="agegrid">
+    <button class="agecard" data-age="A"><span class="big">🐣</span>Ages 3–4<small>colors · shapes · counting</small></button>
+    <button class="agecard" data-age="B"><span class="big">🦊</span>Ages 5–6<small>letters · adding · patterns</small></button>
+    <button class="agecard" data-age="C"><span class="big">🦁</span>Ages 7–8<small>math · spelling · numbers</small></button>
+  </div>
+</div>
+
+<!-- GAME -->
+<div class="screen" id="game">
+  <div class="hud">
+    <button id="home">🏠</button>
+    <span class="pill" id="lvl">Level 1</span>
+    <span class="pill" id="stars">⭐ 0</span>
+  </div>
+  <div class="crewbar" id="crew"></div>
+  <div class="bubblewrap"><div class="bubble" id="bubble">🐙</div></div>
+  <div class="qcard">
+    <div class="qtext" id="qtext"></div>
+    <div class="qvisual" id="qvisual"></div>
+    <div class="opts" id="opts"></div>
+    <div class="cheer" id="cheer"></div>
+  </div>
+</div>
+
+<!-- LEVEL UP -->
+<div id="party">
+  <div class="partycard">
+    <div class="newpal" id="newpal">🐸</div>
+    <h2 id="partytitle">Level Up!</h2>
+    <p id="partymsg">You rescued a new friend!</p>
+    <button class="bigbtn" id="go">Keep Rescuing! 🚀</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============ helpers ============ */
+const $ = id => document.getElementById(id);
+const rand = n => Math.floor(Math.random() * n);
+const pick = a => a[rand(a.length)];
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+/* star field */
+(() => {
+  const sky = $("sky");
+  for (let i = 0; i < 40; i++) {
+    const s = document.createElement("span");
+    s.textContent = "✦";
+    s.style.left = rand(100) + "%";
+    s.style.top = rand(100) + "%";
+    s.style.fontSize = (6 + rand(10)) + "px";
+    s.style.animationDelay = (Math.random() * 2.4) + "s";
+    sky.appendChild(s);
+  }
+})();
+
+/* ============ sound (WebAudio, no files) ============ */
+let actx = null;
+function beep(freq, dur, delay = 0, type = "sine", vol = 0.18) {
+  if (!actx) return;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.value = freq;
+  const t = actx.currentTime + delay;
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(t); o.stop(t + dur);
+}
+const sndRight = () => { beep(523, .15); beep(659, .15, .1); beep(784, .25, .2); };
+const sndWrong = () => beep(180, .3, 0, "triangle");
+const sndLevel = () => [523,659,784,1047,1319].forEach((f,i)=>beep(f,.2,i*.12));
+function initAudio(){ try { if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended") actx.resume(); } catch(e){} }
+
+/* ============ question generators ============ */
+const COLORS = [["red","🔴"],["blue","🔵"],["green","🟢"],["yellow","🟡"],["purple","🟣"],["orange","🟠"]];
+const SHAPES = [["circle","🔴"],["square","🟦"],["triangle","🔺"],["star","⭐"],["heart","❤️"]];
+const ANIMALS = [["cow","🐮"],["dog","🐶"],["cat","🐱"],["pig","🐷"],["frog","🐸"],["lion","🦁"],["fish","🐟"],["duck","🦆"]];
+const FRUITS = ["🍎","🍌","🍓","🍊","🍇"];
+const LETTER_WORDS = [["S","☀️ Sun"],["D","🐶 Dog"],["C","🐱 Cat"],["B","⚽ Ball"],["A","🍎 Apple"],["M","🌙 Moon"],["F","🐟 Fish"],["T","🌳 Tree"],["H","🏠 House"],["R","🌈 Rainbow"]];
+const SPELLING = [["friend","frend"],["school","skool"],["because","becuz"],["little","littel"],["house","howse"],["water","watter"],["happy","happe"],["night","nite"],["said","sed"],["people","peeple"]];
+
+function q34() { // ages 3-4
+  switch (rand(5)) {
+    case 0: { const [name, dot] = pick(COLORS);
+      return { q: `Tap the ${name} circle!`, v: "", opts: shuffle([dot, ...shuffle(COLORS.filter(c=>c[0]!==name)).slice(0,2).map(c=>c[1])]), a: dot }; }
+    case 1: { const [name, s] = pick(SHAPES);
+      return { q: `Which one is the ${name}?`, v: "", opts: shuffle([s, ...shuffle(SHAPES.filter(x=>x[0]!==name)).slice(0,2).map(x=>x[1])]), a: s }; }
+    case 2: { const n = 1 + rand(5), f = pick(FRUITS);
+      const wrong = shuffle([1,2,3,4,5].filter(x=>x!==n)).slice(0,2);
+      return { q: "How many do you see?", v: Array(n).fill(f).join(" "), opts: shuffle([n, ...wrong]).map(String), a: String(n) }; }
+    case 3: { const [name, e] = pick(ANIMALS);
+      return { q: `Where is the ${name}?`, v: "", opts: shuffle([e, ...shuffle(ANIMALS.filter(x=>x[0]!==name)).slice(0,2).map(x=>x[1])]), a: e }; }
+    default: { const e = pick(["🐘","🚗","🌻","🐢"]);
+      const sizes = shuffle([["2.6rem", true], ["1.4rem", false], ["1rem", false]]);
+      return { q: "Tap the BIGGEST one!", v: "",
+        opts: sizes.map(([sz]) => `<span style="font-size:${sz}">${e}</span>`),
+        a: `<span style="font-size:2.6rem">${e}</span>`, html: true }; }
+  }
+}
+
+function q56() { // ages 5-6
+  switch (rand(5)) {
+    case 0: { const L = String.fromCharCode(65 + rand(26));
+      const others = shuffle("ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter(c=>c!==L)).slice(0,3);
+      return { q: `Find the letter ${L}! (as in "${L.toLowerCase()}")`, v: "", opts: shuffle([L, ...others]), a: L }; }
+    case 1: { const n = 4 + rand(7), f = pick(FRUITS);
+      const wrong = shuffle([...Array(10).keys()].map(x=>x+1).filter(x=>x!==n)).slice(0,3);
+      return { q: "Count them all! How many?", v: Array(n).fill(f).join(" "), opts: shuffle([n, ...wrong]).map(String), a: String(n) }; }
+    case 2: { const a = 1 + rand(5), b = 1 + rand(5), s = a + b;
+      const wrong = shuffle([s-1, s+1, s+2].filter(x=>x>0)).slice(0,3);
+      return { q: `What is ${a} + ${b}?`, v: `${Array(a).fill("🟡").join(" ")}  ➕  ${Array(b).fill("🔵").join(" ")}`,
+        opts: shuffle([s, ...wrong]).map(String), a: String(s) }; }
+    case 3: { const [x, y] = shuffle(COLORS).slice(0,2).map(c=>c[1]);
+      return { q: "What comes next in the pattern?", v: `${x} ${y} ${x} ${y} ${x} ❓`, opts: shuffle([y, x, pick(COLORS.filter(c=>c[1]!==x&&c[1]!==y))[1]]), a: y }; }
+    default: { const [L, word] = pick(LETTER_WORDS);
+      const others = shuffle(LETTER_WORDS.filter(w=>w[0]!==L)).slice(0,2);
+      return { q: `Which one starts with the letter ${L}?`, v: "", opts: shuffle([word, ...others.map(w=>w[1])]), a: word }; }
+  }
+}
+
+function q78() { // ages 7-8
+  switch (rand(5)) {
+    case 0: { const a = 5 + rand(11), b = 3 + rand(10), s = a + b;
+      const wrong = shuffle([s-2,s-1,s+1,s+2]).slice(0,3);
+      return { q: `What is ${a} + ${b}?`, v: "", opts: shuffle([s, ...wrong]).map(String), a: String(s) }; }
+    case 1: { const a = 10 + rand(11), b = 1 + rand(Math.min(a-1, 9)), d = a - b;
+      const wrong = shuffle([d-2,d-1,d+1,d+2].filter(x=>x>=0)).slice(0,3);
+      return { q: `What is ${a} − ${b}?`, v: "", opts: shuffle([d, ...wrong]).map(String), a: String(d) }; }
+    case 2: { const a = 2 + rand(4), b = 2 + rand(5), p = a * b;
+      const wrong = shuffle([...new Set([p-a, p+a, p+b, p-1])].filter(x=>x>0&&x!==p)).slice(0,3);
+      return { q: `What is ${a} × ${b}?`, v: `${a} groups of ${b} ${pick(FRUITS)}`, opts: shuffle([p, ...wrong]).map(String), a: String(p) }; }
+    case 3: { const [good, bad] = pick(SPELLING);
+      return { q: "Which word is spelled correctly?", v: "", opts: shuffle([good, bad]), a: good }; }
+    default: { const step = pick([2, 5, 10]), start = step * (1 + rand(3));
+      const seq = [start, start+step, start+2*step], next = start+3*step;
+      const wrong = shuffle([next-1, next+1, next+step]).slice(0,3);
+      return { q: "What number comes next?", v: `${seq.join(", ")}, ❓`, opts: shuffle([next, ...wrong]).map(String), a: String(next) }; }
+  }
+}
+
+const GEN = { A: q34, B: q56, C: q78 };
+const CHEERS = ["Amazing! 🎉", "You did it! ⭐", "Super smart! 🧠", "Wow! 🚀", "Great job! 🌟", "Fantastic! 🎈"];
+const PALS = ["🐙","🐸","🐼","🦄","🐨","🦖","🐧","🦋","🐬","🦉","🐯","🐰","🦕","🐳","🦜"];
+const PER_LEVEL = 5;
+
+/* ============ game state ============ */
+let age = "A", stars = 0, level = 1, rescuedInLevel = 0, current = null, locked = false;
+
+function startGame(a) {
+  age = a; stars = 0; level = 1; rescuedInLevel = 0;
+  $("start").classList.remove("on");
+  $("game").classList.add("on");
+  updateHud(); buildCrew(); nextQuestion();
+}
+
+function updateHud() {
+  $("lvl").textContent = "Level " + level;
+  $("stars").textContent = "⭐ " + stars;
+}
+
+function buildCrew() {
+  const crew = $("crew");
+  crew.innerHTML = "";
+  for (let i = 0; i < PER_LEVEL; i++) {
+    const s = document.createElement("span");
+    const pal = PALS[((level - 1) * PER_LEVEL + i) % PALS.length];
+    s.textContent = pal;
+    s.className = i < rescuedInLevel ? "saved" : "slot";
+    crew.appendChild(s);
+  }
+  $("bubble").textContent = PALS[((level - 1) * PER_LEVEL + rescuedInLevel) % PALS.length];
+  $("bubble").classList.remove("freed");
+}
+
+function nextQuestion() {
+  locked = false;
+  current = GEN[age]();
+  $("qtext").textContent = current.q;
+  $("qvisual").innerHTML = current.v || "";
+  $("cheer").textContent = "";
+  const opts = $("opts");
+  opts.innerHTML = "";
+  current.opts.forEach(o => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    if (current.html) b.innerHTML = o; else b.textContent = o;
+    b.dataset.val = o;
+    b.onclick = () => answer(b, o);
+    opts.appendChild(b);
+  });
+}
+
+function answer(btn, val) {
+  if (locked) return;
+  initAudio();
+  if (val === current.a) {
+    locked = true;
+    btn.classList.add("right");
+    sndRight();
+    confetti();
+    stars++;
+    rescuedInLevel++;
+    updateHud();
+    $("cheer").textContent = pick(CHEERS);
+    $("bubble").classList.add("freed");
+    setTimeout(() => {
+      if (rescuedInLevel >= PER_LEVEL) levelUp();
+      else { buildCrew(); nextQuestion(); }
+    }, 1100);
+  } else {
+    btn.classList.add("wrong");
+    sndWrong();
+    $("cheer").textContent = "Almost! Try again 💪";
+  }
+}
+
+function levelUp() {
+  sndLevel();
+  for (let i = 0; i < 3; i++) setTimeout(confetti, i * 300);
+  $("newpal").textContent = PALS[(level * PER_LEVEL - 1) % PALS.length];
+  $("partytitle").textContent = `Level ${level} complete!`;
+  $("partymsg").textContent = `You rescued ${PER_LEVEL} friends! ${"⭐".repeat(Math.min(level,5))}`;
+  $("party").classList.add("on");
+}
+
+$("go").onclick = () => {
+  $("party").classList.remove("on");
+  level++; rescuedInLevel = 0;
+  updateHud(); buildCrew(); nextQuestion();
+};
+
+$("home").onclick = () => {
+  $("game").classList.remove("on");
+  $("party").classList.remove("on");
+  $("start").classList.add("on");
+};
+
+document.querySelectorAll(".agecard").forEach(b => b.onclick = () => { initAudio(); startGame(b.dataset.age); });
+
+function confetti() {
+  const bits = ["🎉","⭐","✨","🎈","💛","💙"];
+  for (let i = 0; i < 18; i++) {
+    const c = document.createElement("div");
+    c.className = "confetti";
+    c.textContent = pick(bits);
+    c.style.left = rand(100) + "vw";
+    c.style.animationDuration = (1.6 + Math.random() * 1.6) + "s";
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 3400);
+  }
+}
+</script>
+</body>
+</html>

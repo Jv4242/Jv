@@ -42,14 +42,13 @@ If the target doesn't exist yet (nothing to "fix"), say so and propose the
 smallest scaffold rather than guessing.
 
 ## Project map — keep current, never rediscover
-This repo is currently empty. As the stack is established, record durable facts
-here (in one line each) so they're never rediscovered:
-- Stack / package manager: _(unset)_
-- Install / build: _(unset)_
-- Test (targeted, then full): _(unset)_
+Record durable facts here (in one line each) so they're never rediscovered:
+- Stack / package manager: vanilla HTML/CSS/JS, zero dependencies, no build step
+- Install / build: none — open `index.html` in a browser
+- Test (targeted, then full): `node test.js` (question-generator smoke test)
 - Lint / format / typecheck: _(unset)_
-- Deploy: _(unset)_
-- Architecture notes: _(unset)_
+- Deploy: static hosting (any); file works standalone/offline
+- Architecture notes: entire game in `index.html`; question generators `q34`/`q56`/`q78` return `{q, v, opts, a}` and are dispatched via `GEN[age]`
 
 When you discover or establish one of these, update the line here in the same
 change. Only add stack-specific Skills/hooks/scripts once a real, recurring need
