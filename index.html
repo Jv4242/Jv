@@ -71,10 +71,18 @@
   @keyframes fly { 30%{transform:scale(1.25)} 100%{transform:translateY(-140px) scale(.4); opacity:0} }
 
   .qcard {
+    position: relative;
     background: rgba(255,255,255,.96); color: #333a6e;
     border-radius: 24px; padding: 18px 20px; width: 100%; max-width: 560px;
     box-shadow: 0 8px 24px rgba(0,0,0,.35); margin-top: 8px;
   }
+  .hearbtn {
+    position: absolute; top: 10px; right: 10px; z-index: 2;
+    width: 46px; height: 46px; border: none; border-radius: 50%;
+    background: linear-gradient(180deg, #ffe9a8, #ffd75e); font-size: 1.35rem;
+    cursor: pointer; box-shadow: 0 3px 0 #d9b23c;
+  }
+  .hearbtn:active { transform: translateY(2px); box-shadow: 0 1px 0 #d9b23c; }
   .brain {
     display: none; width: max-content; margin: 0 auto 10px;
     background: linear-gradient(180deg, #ffe9a8, #ffd75e); color: #7a4a00;
@@ -136,10 +144,12 @@
     <button id="home">🏠</button>
     <span class="pill" id="lvl">Level 1</span>
     <span class="pill" id="stars">⭐ 0</span>
+    <button id="voice" title="Voice on/off">🔊</button>
   </div>
   <div class="crewbar" id="crew"></div>
   <div class="bubblewrap"><div class="bubble" id="bubble">🐙</div></div>
   <div class="qcard" id="qcard">
+    <button class="hearbtn" id="hear" title="Hear the question">🔊</button>
     <div class="brain">🧠 Brain Challenge — worth 2 ⭐</div>
     <div class="qtext" id="qtext"></div>
     <div class="qvisual" id="qvisual"></div>
@@ -197,6 +207,40 @@ const sndWrong = () => beep(180, .3, 0, "triangle");
 const sndLevel = () => [523,659,784,1047,1319].forEach((f,i)=>beep(f,.2,i*.12));
 function initAudio(){ try { if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended") actx.resume(); } catch(e){} }
 
+/* ============ voice (speech synthesis, reads questions aloud) ============ */
+let voiceOn = true;
+try { voiceOn = localStorage.getItem("sr_voice") !== "off"; } catch (e) {}
+function cleanSpeech(s) {
+  return s
+    .replace(/\+/g, " plus ").replace(/[−–]/g, " minus ")
+    .replace(/×/g, " times ").replace(/÷/g, " divided by ")
+    .replace(/❓/g, " what ")
+    .replace(/[\p{Extended_Pictographic}️⃣]/gu, "")
+    .replace(/\s+/g, " ").trim();
+}
+function getVoice() {
+  const vs = speechSynthesis.getVoices();
+  return vs.find(v => v.lang.startsWith("en") && /female|child|kids|Google US/i.test(v.name))
+    || vs.find(v => v.lang.startsWith("en")) || null;
+}
+function stopSpeech() { try { speechSynthesis.cancel(); } catch (e) {} }
+function speak(text) {
+  if (!voiceOn || !text) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US"; u.rate = 0.9; u.pitch = 1.1;
+    const v = getVoice(); if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+function speakQuestion() {
+  if (!current) return;
+  let text = current.sp || current.q;
+  if (isChallenge) text = "Brain challenge! " + text;
+  speak(cleanSpeech(text));
+}
+
 /* ============ question generators ============ */
 const COLORS = [["red","🔴"],["blue","🔵"],["green","🟢"],["yellow","🟡"],["purple","🟣"],["orange","🟠"]];
 const SHAPES = [["circle","🔴"],["square","🟦"],["triangle","🔺"],["star","⭐"],["heart","❤️"]];
@@ -205,62 +249,109 @@ const FRUITS = ["🍎","🍌","🍓","🍊","🍇"];
 const LETTER_WORDS = [["S","☀️ Sun"],["D","🐶 Dog"],["C","🐱 Cat"],["B","⚽ Ball"],["A","🍎 Apple"],["M","🌙 Moon"],["F","🐟 Fish"],["T","🌳 Tree"],["H","🏠 House"],["R","🌈 Rainbow"]];
 const SPELLING = [["friend","frend"],["school","skool"],["because","becuz"],["little","littel"],["house","howse"],["water","watter"],["happy","happe"],["night","nite"],["said","sed"],["people","peeple"]];
 
+/* difficulty rises with level: 0 (levels 1-2), 1 (levels 3-4), 2 (level 5+) */
+const diff = () => level <= 2 ? 0 : level <= 4 ? 1 : 2;
+const ABC = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+/* shuffled deck of question types per band, so the same type never streaks */
+const decks = {};
+function drawType(key, n) {
+  const k = key + ":" + n;
+  if (!decks[k] || !decks[k].length) decks[k] = shuffle([...Array(n).keys()]);
+  return decks[k].pop();
+}
+function numOpts(ans, spread, count = 3) {
+  const wrong = shuffle([...new Set(spread)].filter(x => x >= 0 && x !== ans)).slice(0, count);
+  return { opts: shuffle([ans, ...wrong]).map(String), a: String(ans) };
+}
+
 function q34() { // ages 3-4
-  switch (rand(5)) {
+  const d = diff(), nOpt = d === 0 ? 3 : 4;
+  switch (drawType("qA", d === 0 ? 5 : 6)) {
     case 0: { const [name, dot] = pick(COLORS);
-      return { q: `Tap the ${name} circle!`, v: "", opts: shuffle([dot, ...shuffle(COLORS.filter(c=>c[0]!==name)).slice(0,2).map(c=>c[1])]), a: dot }; }
+      return { q: `Tap the ${name} circle!`, v: "", opts: shuffle([dot, ...shuffle(COLORS.filter(c=>c[0]!==name)).slice(0,nOpt-1).map(c=>c[1])]), a: dot }; }
     case 1: { const [name, s] = pick(SHAPES);
-      return { q: `Which one is the ${name}?`, v: "", opts: shuffle([s, ...shuffle(SHAPES.filter(x=>x[0]!==name)).slice(0,2).map(x=>x[1])]), a: s }; }
-    case 2: { const n = 1 + rand(5), f = pick(FRUITS);
-      const wrong = shuffle([1,2,3,4,5].filter(x=>x!==n)).slice(0,2);
+      return { q: `Which one is the ${name}?`, v: "", opts: shuffle([s, ...shuffle(SHAPES.filter(x=>x[0]!==name)).slice(0,nOpt-1).map(x=>x[1])]), a: s }; }
+    case 2: { const max = d === 0 ? 5 : 8; const n = 1 + rand(max), f = pick(FRUITS);
+      const wrong = shuffle([...Array(max).keys()].map(x=>x+1).filter(x=>x!==n)).slice(0,nOpt-1);
       return { q: "How many do you see?", v: Array(n).fill(f).join(" "), opts: shuffle([n, ...wrong]).map(String), a: String(n) }; }
     case 3: { const [name, e] = pick(ANIMALS);
-      return { q: `Where is the ${name}?`, v: "", opts: shuffle([e, ...shuffle(ANIMALS.filter(x=>x[0]!==name)).slice(0,2).map(x=>x[1])]), a: e }; }
-    default: { const e = pick(["🐘","🚗","🌻","🐢"]);
-      const sizes = shuffle([["2.6rem", true], ["1.4rem", false], ["1rem", false]]);
+      return { q: `Where is the ${name}?`, v: "", opts: shuffle([e, ...shuffle(ANIMALS.filter(x=>x[0]!==name)).slice(0,nOpt-1).map(x=>x[1])]), a: e }; }
+    case 4: { const e = pick(["🐘","🚗","🌻","🐢"]);
+      const sizes = shuffle(["2.6rem", "1.4rem", "1rem"]);
       return { q: "Tap the BIGGEST one!", v: "",
-        opts: sizes.map(([sz]) => `<span style="font-size:${sz}">${e}</span>`),
+        opts: sizes.map(sz => `<span style="font-size:${sz}">${e}</span>`),
         a: `<span style="font-size:2.6rem">${e}</span>`, html: true }; }
+    default: { const f = pick(FRUITS); const a = 2 + rand(5); let b = 2 + rand(5); if (b === a) b = a === 6 ? 4 : a + 1;
+      const mk = n => `<span style="font-size:1.3rem">${Array(n).fill(f).join("")}</span>`;
+      const A = mk(a), B = mk(b);
+      return { q: "Tap the group with MORE!", v: "", opts: shuffle([A, B]), a: a > b ? A : B, html: true }; }
   }
 }
 
 function q56() { // ages 5-6
-  switch (rand(5)) {
-    case 0: { const L = String.fromCharCode(65 + rand(26));
-      const others = shuffle("ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter(c=>c!==L)).slice(0,3);
-      return { q: `Find the letter ${L}! (as in "${L.toLowerCase()}")`, v: "", opts: shuffle([L, ...others]), a: L }; }
-    case 1: { const n = 4 + rand(7), f = pick(FRUITS);
-      const wrong = shuffle([...Array(10).keys()].map(x=>x+1).filter(x=>x!==n)).slice(0,3);
+  const d = diff(), nOpt = d === 0 ? 3 : 4;
+  switch (drawType("qB", 5)) {
+    case 0: { const L = pick(ABC);
+      if (d === 0) { const others = shuffle(ABC.filter(c=>c!==L)).slice(0,2);
+        return { q: `Find the letter ${L}!`, v: "", opts: shuffle([L, ...others]), a: L }; }
+      const others = shuffle(ABC.filter(c=>c!==L)).slice(0,3).map(c=>c.toLowerCase());
+      return { q: `Which little letter matches big ${L}?`, sp: `Which little letter matches the big letter ${L}?`, v: L,
+        opts: shuffle([L.toLowerCase(), ...others]), a: L.toLowerCase() }; }
+    case 1: { const max = d === 0 ? 10 : 15; const n = 4 + rand(max - 3), f = pick(FRUITS);
+      const wrong = shuffle([...Array(max).keys()].map(x=>x+1).filter(x=>x!==n)).slice(0,nOpt-1);
       return { q: "Count them all! How many?", v: Array(n).fill(f).join(" "), opts: shuffle([n, ...wrong]).map(String), a: String(n) }; }
-    case 2: { const a = 1 + rand(5), b = 1 + rand(5), s = a + b;
-      const wrong = shuffle([s-1, s+1, s+2].filter(x=>x>0)).slice(0,3);
-      return { q: `What is ${a} + ${b}?`, v: `${Array(a).fill("🟡").join(" ")}  ➕  ${Array(b).fill("🔵").join(" ")}`,
-        opts: shuffle([s, ...wrong]).map(String), a: String(s) }; }
-    case 3: { const [x, y] = shuffle(COLORS).slice(0,2).map(c=>c[1]);
-      return { q: "What comes next in the pattern?", v: `${x} ${y} ${x} ${y} ${x} ❓`, opts: shuffle([y, x, pick(COLORS.filter(c=>c[1]!==x&&c[1]!==y))[1]]), a: y }; }
+    case 2: {
+      if (d === 2 && rand(2) === 0) { const a = 5 + rand(14), b = 1 + rand(Math.min(a - 1, 9)), df = a - b;
+        return { q: `What is ${a} − ${b}?`, sp: `What is ${a} minus ${b}?`, v: "", ...numOpts(df, [df-2,df-1,df+1,df+2], nOpt-1) }; }
+      const hi = d === 0 ? 5 : 9; const a = 1 + rand(hi), b = 1 + rand(hi), s = a + b;
+      const v = d === 0 ? `${Array(a).fill("🟡").join(" ")}  ➕  ${Array(b).fill("🔵").join(" ")}` : "";
+      return { q: `What is ${a} + ${b}?`, sp: `What is ${a} plus ${b}?`, v, ...numOpts(s, [s-2,s-1,s+1,s+2], nOpt-1) }; }
+    case 3: {
+      if (d === 0) { const [x, y] = shuffle(COLORS).slice(0,2);
+        return { q: "What comes next in the pattern?", sp: `${x[0]}, ${y[0]}, ${x[0]}, ${y[0]}, ${x[0]}, what comes next?`,
+          v: `${x[1]} ${y[1]} ${x[1]} ${y[1]} ${x[1]} ❓`,
+          opts: shuffle([y[1], x[1], pick(COLORS.filter(c=>c!==x&&c!==y))[1]]), a: y[1] }; }
+      const [x, y, z] = shuffle(COLORS).slice(0,3);
+      return { q: "Tricky pattern! What comes next?", sp: `${x[0]}, ${y[0]}, ${z[0]}, ${x[0]}, ${y[0]}, what comes next?`,
+        v: `${x[1]} ${y[1]} ${z[1]} ${x[1]} ${y[1]} ❓`, opts: shuffle([z[1], x[1], y[1]]), a: z[1] }; }
     default: { const [L, word] = pick(LETTER_WORDS);
-      const others = shuffle(LETTER_WORDS.filter(w=>w[0]!==L)).slice(0,2);
+      const others = shuffle(LETTER_WORDS.filter(w=>w[0]!==L)).slice(0,nOpt-1);
       return { q: `Which one starts with the letter ${L}?`, v: "", opts: shuffle([word, ...others.map(w=>w[1])]), a: word }; }
   }
 }
 
 function q78() { // ages 7-8
-  switch (rand(5)) {
-    case 0: { const a = 5 + rand(11), b = 3 + rand(10), s = a + b;
-      const wrong = shuffle([s-2,s-1,s+1,s+2]).slice(0,3);
-      return { q: `What is ${a} + ${b}?`, v: "", opts: shuffle([s, ...wrong]).map(String), a: String(s) }; }
-    case 1: { const a = 10 + rand(11), b = 1 + rand(Math.min(a-1, 9)), d = a - b;
-      const wrong = shuffle([d-2,d-1,d+1,d+2].filter(x=>x>=0)).slice(0,3);
-      return { q: `What is ${a} − ${b}?`, v: "", opts: shuffle([d, ...wrong]).map(String), a: String(d) }; }
-    case 2: { const a = 2 + rand(4), b = 2 + rand(5), p = a * b;
-      const wrong = shuffle([...new Set([p-a, p+a, p+b, p-1])].filter(x=>x>0&&x!==p)).slice(0,3);
-      return { q: `What is ${a} × ${b}?`, v: `${a} groups of ${b} ${pick(FRUITS)}`, opts: shuffle([p, ...wrong]).map(String), a: String(p) }; }
+  const d = diff();
+  switch (drawType("qC", 5)) {
+    case 0: { const hi = d === 0 ? 12 : d === 1 ? 30 : 60;
+      const a = 5 + rand(hi), b = 3 + rand(hi), s = a + b;
+      return { q: `What is ${a} + ${b}?`, sp: `What is ${a} plus ${b}?`, v: "", ...numOpts(s, [s-10,s-2,s-1,s+1,s+2,s+10]) }; }
+    case 1: { const hi = d === 0 ? 20 : d === 1 ? 50 : 99;
+      const a = 10 + rand(hi - 9), b = 1 + rand(a - 1), df = a - b;
+      return { q: `What is ${a} − ${b}?`, sp: `What is ${a} minus ${b}?`, v: "", ...numOpts(df, [df-10,df-2,df-1,df+1,df+2,df+10]) }; }
+    case 2: { if (d === 2 && rand(2) === 0) { const a = 2 + rand(8), b = 2 + rand(8);
+        return { q: `What is ${a*b} ÷ ${a}?`, sp: `What is ${a*b} divided by ${a}?`, v: "", ...numOpts(b, [b-2,b-1,b+1,b+2]) }; }
+      const a = 2 + rand(d === 0 ? 4 : 8), b = 2 + rand(d === 0 ? 5 : 8), p = a * b;
+      return { q: `What is ${a} × ${b}?`, sp: `What is ${a} times ${b}?`, v: d === 0 ? `${a} groups of ${b} ${pick(FRUITS)}` : "",
+        ...numOpts(p, [p-a,p+a,p+b,p-1,p+1]) }; }
     case 3: { const [good, bad] = pick(SPELLING);
+      if (d >= 1) { const bad2 = pick(SPELLING.filter(s=>s[0]!==good))[1];
+        return { q: "Which word is spelled correctly?", v: "", opts: shuffle([good, bad, bad2]), a: good }; }
       return { q: "Which word is spelled correctly?", v: "", opts: shuffle([good, bad]), a: good }; }
-    default: { const step = pick([2, 5, 10]), start = step * (1 + rand(3));
-      const seq = [start, start+step, start+2*step], next = start+3*step;
-      const wrong = shuffle([next-1, next+1, next+step]).slice(0,3);
-      return { q: "What number comes next?", v: `${seq.join(", ")}, ❓`, opts: shuffle([next, ...wrong]).map(String), a: String(next) }; }
+    default: {
+      if (d === 0) { const step = pick([2, 5, 10]), s0 = step * (1 + rand(3)), next = s0 + 3*step;
+        return { q: "What number comes next?", sp: `${s0}, ${s0+step}, ${s0+2*step}, what comes next?`,
+          v: `${s0}, ${s0+step}, ${s0+2*step}, ❓`, ...numOpts(next, [next-1,next+1,next+step]) }; }
+      if (d === 1 || rand(2) === 0) { const down = rand(2) === 0, step = pick([3, 4, 6]);
+        const s0 = down ? 30 + rand(20) : 2 + rand(9);
+        const seq = down ? [s0, s0-step, s0-2*step] : [s0, s0+step, s0+2*step];
+        const next = down ? s0-3*step : s0+3*step;
+        return { q: down ? "Counting down! What comes next?" : "What number comes next?",
+          sp: `${seq.join(", ")}, what comes next?`, v: `${seq.join(", ")}, ❓`,
+          ...numOpts(next, [next-1,next+1,next+step,next-step]) }; }
+      const n = 2 + rand(3), next = 8*n;
+      return { q: "The numbers keep doubling! What comes next?", sp: `${n}, ${2*n}, ${4*n}, what comes next?`,
+        v: `${n}, ${2*n}, ${4*n}, ❓`, ...numOpts(next, [next-2,next+2,6*n,next+n]) }; }
   }
 }
 
@@ -272,7 +363,7 @@ const ODD_A = [
 ];
 const PAIRS_A = [["🧦","👟"],["☔","🌧️"],["🐝","🌸"],["🔑","🚪"],["🦷","🪥"],["✏️","📄"]];
 function c34() { // ages 3-4: sorting, matching, comparing
-  switch (rand(3)) {
+  switch (drawType("cA", 3)) {
     case 0: { const [group, odds] = pick(ODD_A);
       const o = pick(odds);
       return { q: "Which one does NOT belong?", v: "", opts: shuffle([...shuffle(group).slice(0,2), o]), a: o }; }
@@ -306,19 +397,25 @@ const ANALOGIES_B = [
   { q: "Daytime has the sun. Nighttime has the…", opts: ["🌙 Moon","🌈 Rainbow","☔ Umbrella"], a: "🌙 Moon" },
 ];
 function c56() { // ages 5-6: logic, patterns, riddles, story math
-  switch (rand(5)) {
+  const d = diff();
+  switch (drawType("cB", 5)) {
     case 0: { const [q, near, far] = pick(SORT_B); const o = pick(far);
-      return { q, v: "", opts: shuffle([...shuffle(near).slice(0,2), o]), a: o }; }
-    case 1: { const [x, y] = shuffle(COLORS).slice(0,2).map(c=>c[1]);
-      return { q: "Look closely! What comes next?", v: `${x} ${x} ${y} ${x} ${x} ❓`,
-        opts: shuffle([y, x, pick(COLORS.filter(c=>c[1]!==x&&c[1]!==y))[1]]), a: y }; }
+      return { q, v: "", opts: shuffle([...shuffle(near).slice(0, d === 0 ? 2 : 3), o]), a: o }; }
+    case 1: { const [x, y] = shuffle(COLORS).slice(0,2);
+      return { q: "Look closely! What comes next?",
+        sp: `${x[0]}, ${x[0]}, ${y[0]}, ${x[0]}, ${x[0]}, what comes next?`,
+        v: `${x[1]} ${x[1]} ${y[1]} ${x[1]} ${x[1]} ❓`,
+        opts: shuffle([y[1], x[1], pick(COLORS.filter(c=>c!==x&&c!==y))[1]]), a: y[1] }; }
     case 2: { const [q, a, wrong] = pick(RIDDLES_B);
       return { q, v: "", opts: shuffle([a, ...wrong]), a }; }
-    case 3: { const a = 1 + rand(4), b = 1 + rand(4), s = a + b;
-      const wrong = shuffle([...new Set([s-1, s+1, s+2])].filter(x=>x>0)).slice(0,2);
+    case 3: { const hi = d === 0 ? 4 : 7;
+      if (d >= 1 && rand(2) === 0) { const a = 3 + rand(hi), b = 1 + rand(a - 1), s = a - b;
+        return { q: `You have ${a} cookies and eat ${b}. How many cookies are left?`,
+          v: Array(a).fill("🍪").join(" "), ...numOpts(s, [s-1, s+1, s+2], 2) }; }
+      const a = 1 + rand(hi), b = 1 + rand(hi), s = a + b;
       return { q: `You have ${a} cookies. A friend gives you ${b} more. How many cookies now?`,
         v: Array(a).fill("🍪").join(" ") + "  ➕  " + Array(b).fill("🍪").join(" "),
-        opts: shuffle([s, ...wrong]).map(String), a: String(s) }; }
+        ...numOpts(s, [s-1, s+1, s+2], 2) }; }
     default: { const an = pick(ANALOGIES_B);
       return { q: an.q, v: "", opts: shuffle(an.opts.slice()), a: an.a }; }
   }
@@ -334,18 +431,20 @@ const RIDDLES_C = [
   ["What gets wetter the more it dries?","🛁 A towel",["🌧️ Rain","🔥 A fire"]],
   ["What can you catch but not throw?","🤧 A cold",["⚽ A ball","🐟 A fish"]],
 ];
-function numOpts(ans, spread) {
-  const wrong = shuffle([...new Set(spread)].filter(x=>x>=0 && x!==ans)).slice(0,3);
-  return { opts: shuffle([ans, ...wrong]).map(String), a: String(ans) };
-}
 function c78() { // ages 7-8: missing numbers, word problems, deduction, riddles
-  switch (rand(5)) {
-    case 0: { const form = rand(3);
-      let q, ans;
-      if (form === 0) { const a = 2 + rand(8); ans = 2 + rand(8); q = `${a} + ❓ = ${a + ans}`; }
-      else if (form === 1) { const b = 1 + rand(8), c = 1 + rand(9); ans = b + c; q = `❓ − ${b} = ${c}`; }
-      else { ans = 1 + rand(8); const c = 1 + rand(9); q = `${ans + c} − ❓ = ${c}`; }
-      return { q: "Find the missing number!", v: q, ...numOpts(ans, [ans-2, ans-1, ans+1, ans+2]) }; }
+  const d = diff();
+  switch (drawType("cC", d >= 1 ? 6 : 5)) {
+    case 0: { const hi = d === 0 ? 8 : d === 1 ? 20 : 40;
+      const form = rand(3);
+      let eq, sp, ans;
+      if (form === 0) { const a = 2 + rand(hi); ans = 2 + rand(hi);
+        eq = `${a} + ❓ = ${a + ans}`; sp = `${a} plus what makes ${a + ans}?`; }
+      else if (form === 1) { const b = 1 + rand(hi), c = 1 + rand(hi); ans = b + c;
+        eq = `❓ − ${b} = ${c}`; sp = `What number minus ${b} makes ${c}?`; }
+      else { ans = 1 + rand(hi); const c = 1 + rand(hi);
+        eq = `${ans + c} − ❓ = ${c}`; sp = `${ans + c} minus what makes ${c}?`; }
+      return { q: "Find the missing number!", sp: `Find the missing number! ${sp}`, v: eq,
+        ...numOpts(ans, [ans-2, ans-1, ans+1, ans+2]) }; }
     case 1: { const N = pick(NAMES); const t = rand(4);
       let q, ans;
       if (t === 0) { const a = 5 + rand(10), b = 3 + rand(8); ans = a + b;
@@ -363,13 +462,19 @@ function c78() { // ages 7-8: missing numbers, word problems, deduction, riddles
       return { q: `${n1} is ${rel} than ${n2}. ${n2} is ${rel} than ${n3}. Who is the ${askMost ? most : least}?`,
         v: "", opts: shuffle([n1, n2, n3]), a: askMost ? n1 : n3 }; }
     case 3: { if (rand(2) === 0) { const n = 1 + rand(3), next = 8 * n;
-        return { q: "The numbers keep doubling! What comes next?", v: `${n}, ${2*n}, ${4*n}, ❓`,
-          ...numOpts(next, [next-2, next-1, next+1, next+2*n]) }; }
-      const d = pick([3, 4, 6]), s = 1 + rand(5), next = s + 3*d;
-      return { q: "Find the pattern! What comes next?", v: `${s}, ${s+d}, ${s+2*d}, ❓`,
-        ...numOpts(next, [next-1, next+1, next+d, next-d]) }; }
-    default: { const [q, a, wrong] = pick(RIDDLES_C);
+        return { q: "The numbers keep doubling! What comes next?", sp: `${n}, ${2*n}, ${4*n}, what comes next?`,
+          v: `${n}, ${2*n}, ${4*n}, ❓`, ...numOpts(next, [next-2, next-1, next+1, next+2*n]) }; }
+      const st = pick([3, 4, 6]), s = 1 + rand(5), next = s + 3*st;
+      return { q: "Find the pattern! What comes next?", sp: `${s}, ${s+st}, ${s+2*st}, what comes next?`,
+        v: `${s}, ${s+st}, ${s+2*st}, ❓`, ...numOpts(next, [next-1, next+1, next+st, next-st]) }; }
+    case 4: { const [q, a, wrong] = pick(RIDDLES_C);
       return { q, v: "", opts: shuffle([a, ...wrong]), a }; }
+    default: { // two-step story problem (difficulty 1+)
+      const N = pick(NAMES);
+      const a = 5 + rand(8), b = 3 + rand(6), c = 2 + rand(Math.min(a + b - 1, 6));
+      const ans = a + b - c;
+      return { q: `${N} has ${a} marbles, wins ${b} more, then gives ${c} to a friend. How many marbles does ${N} have now?`,
+        v: "", ...numOpts(ans, [ans-2, ans-1, ans+1, ans+2, a+b]) }; }
   }
 }
 
@@ -431,6 +536,7 @@ function nextQuestion() {
     b.onclick = () => answer(b, o);
     opts.appendChild(b);
   });
+  speakQuestion();
 }
 
 function answer(btn, val) {
@@ -444,7 +550,9 @@ function answer(btn, val) {
     stars += isChallenge ? 2 : 1;
     rescuedInLevel++;
     updateHud();
-    $("cheer").textContent = pick(isChallenge ? BRAIN_CHEERS : CHEERS);
+    const cheer = pick(isChallenge ? BRAIN_CHEERS : CHEERS);
+    $("cheer").textContent = cheer;
+    speak(cleanSpeech(cheer));
     $("bubble").classList.add("freed");
     setTimeout(() => {
       if (rescuedInLevel >= PER_LEVEL) levelUp();
@@ -454,6 +562,7 @@ function answer(btn, val) {
     btn.classList.add("wrong");
     sndWrong();
     $("cheer").textContent = "Almost! Try again 💪";
+    speak("Almost! Try again!");
   }
 }
 
@@ -464,6 +573,7 @@ function levelUp() {
   $("partytitle").textContent = `Level ${level} complete!`;
   $("partymsg").textContent = `You rescued ${PER_LEVEL} friends! ${"⭐".repeat(Math.min(level,5))}`;
   $("party").classList.add("on");
+  speak(`Level ${level} complete! You rescued ${PER_LEVEL} friends! Get ready, the next level is a little harder!`);
 }
 
 $("go").onclick = () => {
@@ -473,10 +583,22 @@ $("go").onclick = () => {
 };
 
 $("home").onclick = () => {
+  stopSpeech();
   $("game").classList.remove("on");
   $("party").classList.remove("on");
   $("start").classList.add("on");
 };
+
+$("hear").onclick = () => { initAudio(); speakQuestion(); };
+
+function setVoiceBtn() { $("voice").textContent = voiceOn ? "🔊" : "🔇"; }
+$("voice").onclick = () => {
+  voiceOn = !voiceOn;
+  try { localStorage.setItem("sr_voice", voiceOn ? "on" : "off"); } catch (e) {}
+  if (!voiceOn) stopSpeech(); else speakQuestion();
+  setVoiceBtn();
+};
+setVoiceBtn();
 
 document.querySelectorAll(".agecard").forEach(b => b.onclick = () => { initAudio(); startGame(b.dataset.age); });
 

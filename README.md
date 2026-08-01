@@ -13,6 +13,13 @@ bubbles — answer questions to pop the bubbles and rescue them all!
   until they get it. Stars only go up.
 - **Brain Challenges**: every 3rd bubble is golden and holds a problem-solving
   puzzle worth 2 stars — reasoning, not recall.
+- **Voice narration**: every question is read aloud (Web Speech API), so
+  pre-readers always know what to do. A 🔊 button on the card repeats the
+  question; a HUD toggle mutes the voice (remembered between visits).
+- **Gets harder as you play**: each level bumps the difficulty — bigger
+  numbers, more answer choices, and new question forms unlock (subtraction,
+  division, lowercase letters, two-step word problems, countdown patterns).
+  Question types are dealt from a shuffled deck so the same type never streaks.
 
 ## Learning content by age
 
@@ -35,6 +42,7 @@ Works on phones and tablets (big tap targets, sound plays after first tap).
 node test.js
 ```
 
-Generates 30,000 random questions across all three age bands — both knowledge
-generators and Brain Challenge generators — and verifies each one contains its
-correct answer, has no duplicate options, and has at least two choices.
+Generates 54,000 random questions across all three age bands, both generator
+sets (knowledge and Brain Challenge), and all three difficulty tiers — and
+verifies each one contains its correct answer, has no duplicate options, and
+has at least two choices.
