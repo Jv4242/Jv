@@ -145,6 +145,7 @@
     font-family: inherit; font-size: 1.05rem; font-weight: bold; cursor: pointer;
   }
   #voicepick { margin-top: 10px; font-size: .92rem; font-weight: normal; }
+  .voicetip { max-width: 440px; font-size: .82rem; opacity: .85; margin-top: 10px; line-height: 1.45; }
   #awardscr { justify-content: flex-start; overflow-y: auto; padding-top: 28px; }
   .awtitle { font-size: clamp(1.6rem, 6vw, 2.2rem); text-shadow: 0 3px 0 rgba(0,0,0,.3); }
   .credbig { background: rgba(255,255,255,.15); border-radius: 999px; padding: 8px 20px; margin: 12px 0 4px; font-size: 1.15rem; font-weight: bold; }
@@ -182,6 +183,7 @@
   </div>
   <button class="trophybtn" id="trophies2">🏆 My Trophies</button>
   <button class="trophybtn" id="voicepick">🗣️ Voice</button>
+  <p class="voicetip" id="voicetip" style="display:none">💡 Voice sounding robotic? Open this game in <b>Microsoft Edge</b> for a natural voice, or install an "Enhanced" voice in your device's speech settings — the game will find it automatically.</p>
 </div>
 
 <!-- TROPHY ROOM -->
@@ -311,29 +313,40 @@ function getVoice() {
 function stopSpeech() { try { speechSynthesis.cancel(); } catch (e) {} }
 /* some browsers return an empty voice list until voiceschanged fires (handler set below) */
 try { speechSynthesis.getVoices(); } catch (e) {}
-function speak(text) {
-  if (!voiceOn || !text) return;
+/* expressive delivery: each phrase gets its own pitch and energy, so the
+   voice performs (excited opener -> warm question) instead of droning */
+function speakParts(parts) {
+  if (!voiceOn || !parts.length) return;
   try {
     if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
     speechSynthesis.resume(); // iOS Safari can leave synthesis stuck in a paused state
-    const u = new SpeechSynthesisUtterance(text);
-    const v = getVoice(); if (v) u.voice = v;
+    const v = getVoice();
     const kidVoice = v && /\bana\b|kids|child/i.test(v.name);
-    u.lang = "en-US";
-    u.rate = 0.85;                    // gentle teacher pace
-    u.pitch = kidVoice ? 1.0 : 1.06;  // over-pitching is what sounds robotic
     const btn = $("hear");
-    u.onstart = () => btn.classList.add("speaking");
-    u.onend = u.onerror = () => btn.classList.remove("speaking");
-    speechSynthesis.speak(u);
+    const spoken = parts.map(p => ({ ...p, t: cleanSpeech(p.t) })).filter(p => p.t);
+    spoken.forEach((p, i) => {
+      const u = new SpeechSynthesisUtterance(p.t);
+      if (v) u.voice = v;
+      u.lang = "en-US";
+      u.rate = p.rate || 0.9;
+      u.pitch = kidVoice ? Math.min(p.pitch || 1.1, 1.15) : (p.pitch || 1.1);
+      if (i === 0) u.onstart = () => btn.classList.add("speaking");
+      if (i === spoken.length - 1) u.onend = u.onerror = () => btn.classList.remove("speaking");
+      speechSynthesis.speak(u);
+    });
   } catch (e) {}
 }
+function speak(text) { speakParts([{ t: text }]); }
+const OPENERS = ["Okay, here we go!", "Ooh, listen up!", "Ready, superstar?", "Here's a good one!", "You've got this!"];
+const WOOS = ["Woo hoo!", "Yay!", "Awesome!", "Hooray!", "Super duper!"];
 function speakQuestion() {
   if (!current) return;
-  let text = current.sp || current.q;
-  if (isChallenge) text = "Brain challenge! " + text;
-  else if (isPuzzle) text = "Puzzle time! " + text;
-  speak(cleanSpeech(text));
+  const parts = [];
+  if (isChallenge) parts.push({ t: "Ooh, brain challenge!", rate: 1.02, pitch: 1.35 });
+  else if (isPuzzle) parts.push({ t: "Puzzle time!", rate: 1.02, pitch: 1.35 });
+  else if (qNum % 2 === 0) parts.push({ t: pick(OPENERS), rate: 1.0, pitch: 1.3 });
+  parts.push({ t: current.sp || current.q, rate: 0.92, pitch: 1.12 });
+  speakParts(parts);
 }
 /* if a question sits unanswered, read it aloud one more time */
 let rereadTimer = null;
@@ -581,8 +594,6 @@ function c78() { // ages 7-8: missing numbers, word problems, deduction, riddles
 
 const GEN = { A: q34, B: q56, C: q78 };
 const CHAL = { A: c34, B: c56, C: c78 };
-const CHEERS = ["Amazing! 🎉", "You did it! ⭐", "Super smart! 🧠", "Wow! 🚀", "Great job! 🌟", "Fantastic! 🎈"];
-const BRAIN_CHEERS = ["Brain power! 🧠⚡", "Puzzle master! 🧩", "Super solver! 🕵️", "Big brain! 🧠🌟"];
 const PALS = [
   ["🐙","Bloop"],["🐸","Zippy"],["🐼","Momo"],["🦄","Sparkle"],["🐨","Koko"],
   ["🦖","Rexy"],["🐧","Waddles"],["🦋","Flutter"],["🐬","Splash"],["🦉","Hoot"],
@@ -689,7 +700,10 @@ function showNextAward() {
   el.classList.add("show");
   sndLevel();
   for (let i = 0; i < 2; i++) setTimeout(confetti, i * 300);
-  speak("New award! " + a.name + "!");
+  speakParts([
+    { t: "New award!", rate: 1.0, pitch: 1.45 },
+    { t: a.name + "!", rate: 0.95, pitch: 1.25 },
+  ]);
   setTimeout(() => {
     el.classList.remove("show");
     awardShowing = false;
@@ -719,6 +733,8 @@ function prettyVoiceName(v) {
 function refreshVoicePick() {
   const v = getVoice();
   $("voicepick").textContent = "🗣️ Voice: " + (v ? prettyVoiceName(v) : "Default") + " · tap to change";
+  /* if the best available voice is still a robotic one, tell the parent how to get a warm one */
+  $("voicetip").style.display = (!v || voiceScore(v) < 40) ? "" : "none";
 }
 $("voicepick").onclick = () => {
   const vs = englishVoices().slice(0, 8);
@@ -729,7 +745,10 @@ $("voicepick").onclick = () => {
   chosenVoiceName = next.name;
   try { localStorage.setItem("sr_voice_name", chosenVoiceName); } catch (e) {}
   refreshVoicePick();
-  speak(`Hi friend! I'm ${prettyVoiceName(next)}, and I love playing Star Rescue with you!`);
+  speakParts([
+    { t: "Hi friend!", rate: 1.0, pitch: 1.3 },
+    { t: `I'm ${prettyVoiceName(next)}, and I love playing Star Rescue with you!`, rate: 0.92, pitch: 1.12 },
+  ]);
 };
 try { speechSynthesis.onvoiceschanged = () => { speechSynthesis.getVoices(); refreshVoicePick(); }; } catch (e) {}
 
@@ -819,7 +838,10 @@ function markMiss() {
   missedThis = true;
   mistakesThisLevel++;
   $("cheer").textContent = "Almost! Try again 💪";
-  speak("Almost! Try again!");
+  speakParts([
+    { t: "Almost!", rate: 0.98, pitch: 1.2 },
+    { t: "Try again, you can do it!", rate: 0.88, pitch: 1.08 },
+  ]);
   armReread();
 }
 
@@ -842,9 +864,11 @@ function solved() {
   if (isChallenge || isPuzzle) save.brains++;
   persist();
   updateHud();
-  const cheer = pick((isChallenge || isPuzzle) ? BRAIN_CHEERS : CHEERS);
   $("cheer").textContent = `You saved ${pal[1]}! ${pal[0]} +${gain} 🪙`;
-  speak(cleanSpeech(`${cheer} You saved ${pal[1]}!`));
+  speakParts([
+    { t: pick(WOOS), rate: 1.05, pitch: 1.45 },
+    { t: `You saved ${pal[1]}!`, rate: 0.95, pitch: 1.25 },
+  ]);
   earnAwards();
   $("bubble").classList.add("freed");
   setTimeout(() => {
@@ -904,7 +928,11 @@ function levelUp() {
   $("partytitle").textContent = `Level ${level} complete!`;
   $("partymsg").textContent = `You rescued ${PER_LEVEL} friends! ${"⭐".repeat(Math.min(level,5))}`;
   $("party").classList.add("on");
-  speak(`Level ${level} complete! ${pal[1]} and all their friends are free! Get ready, the next level is a little harder!`);
+  speakParts([
+    { t: `Level ${level} complete!`, rate: 1.0, pitch: 1.4 },
+    { t: `${pal[1]} and all their friends are free!`, rate: 0.95, pitch: 1.2 },
+    { t: "Get ready, the next level is a little harder!", rate: 0.92, pitch: 1.1 },
+  ]);
 }
 
 $("go").onclick = () => {
