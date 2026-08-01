@@ -42,7 +42,7 @@
 
   /* ---------- game screen ---------- */
   #game { justify-content: flex-start; padding-top: 12px; }
-  .hud { width: 100%; max-width: 560px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 1rem; }
+  .hud { width: 100%; max-width: 560px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; font-size: .95rem; }
   .hud .pill { background: rgba(255,255,255,.15); border-radius: 999px; padding: 6px 14px; white-space: nowrap; }
   .hud button { background: rgba(255,255,255,.15); color:#fff; border:none; border-radius:999px; padding:6px 14px; font-family:inherit; font-size:1rem; cursor:pointer; }
 
@@ -123,6 +123,33 @@
 
   .confetti { position: fixed; top: -20px; z-index: 9; font-size: 1.4rem; pointer-events: none; animation: fall linear forwards; }
   @keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
+
+  /* ---------- credits & awards ---------- */
+  .trophybtn {
+    margin-top: 20px; background: rgba(255,255,255,.15); color: #fff;
+    border: none; border-radius: 999px; padding: 12px 22px;
+    font-family: inherit; font-size: 1.05rem; font-weight: bold; cursor: pointer;
+  }
+  #awardscr { justify-content: flex-start; overflow-y: auto; padding-top: 28px; }
+  .awtitle { font-size: clamp(1.6rem, 6vw, 2.2rem); text-shadow: 0 3px 0 rgba(0,0,0,.3); }
+  .credbig { background: rgba(255,255,255,.15); border-radius: 999px; padding: 8px 20px; margin: 12px 0 4px; font-size: 1.15rem; font-weight: bold; }
+  .awardgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; width: 100%; max-width: 560px; margin: 14px 0 18px; }
+  .awcard { background: rgba(255,255,255,.12); border-radius: 16px; padding: 12px 8px; }
+  .awcard .ic { font-size: 2rem; }
+  .awcard .nm { font-weight: bold; font-size: .92rem; margin-top: 4px; }
+  .awcard .ds { font-size: .75rem; opacity: .85; margin-top: 2px; line-height: 1.3; }
+  .awcard.locked { opacity: .45; filter: grayscale(.8); }
+  .awcard.earned { background: linear-gradient(180deg, rgba(255,223,107,.28), rgba(255,179,71,.2)); outline: 2px solid #ffd75e; }
+  #awardpop {
+    position: fixed; top: -130px; left: 50%; transform: translateX(-50%); z-index: 20;
+    display: flex; align-items: center; gap: 12px; max-width: 92vw;
+    background: linear-gradient(180deg, #ffe9a8, #ffce4f); color: #6a3f00;
+    border-radius: 20px; padding: 12px 22px; font-weight: bold; text-align: left;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    transition: top .5s cubic-bezier(.34, 1.56, .64, 1);
+  }
+  #awardpop.show { top: 16px; }
+  #awardpop .awicon { font-size: 2.2rem; }
 </style>
 </head>
 <body>
@@ -138,7 +165,19 @@
     <button class="agecard" data-age="B"><span class="big">🦊</span>Ages 5–6<small>letters · adding · patterns</small></button>
     <button class="agecard" data-age="C"><span class="big">🦁</span>Ages 7–8<small>math · spelling · numbers</small></button>
   </div>
+  <button class="trophybtn" id="trophies2">🏆 My Trophies</button>
 </div>
+
+<!-- TROPHY ROOM -->
+<div class="screen" id="awardscr">
+  <h2 class="awtitle">🏆 Trophy Room</h2>
+  <div class="credbig" id="credsAw">🪙 0 credits</div>
+  <div class="awardgrid" id="awardgrid"></div>
+  <button class="bigbtn" id="awback">⬅ Back</button>
+</div>
+
+<!-- AWARD POPUP -->
+<div id="awardpop"></div>
 
 <!-- GAME -->
 <div class="screen" id="game">
@@ -146,6 +185,8 @@
     <button id="home">🏠</button>
     <span class="pill" id="lvl">Level 1</span>
     <span class="pill" id="stars">⭐ 0</span>
+    <span class="pill" id="creds">🪙 0</span>
+    <button id="trophies" title="Trophy Room">🏆</button>
     <button id="voice" title="Voice on/off">🔊</button>
   </div>
   <div class="crewbar" id="crew"></div>
@@ -500,12 +541,71 @@ const BRAIN_CHEERS = ["Brain power! 🧠⚡", "Puzzle master! 🧩", "Super solv
 const PALS = ["🐙","🐸","🐼","🦄","🐨","🦖","🐧","🦋","🐬","🦉","🐯","🐰","🦕","🐳","🦜"];
 const PER_LEVEL = 5;
 
+/* ============ credits & awards (persist across visits) ============ */
+const AWARDS = [
+  { id: "first",    icon: "🐣", name: "First Rescue",     need: "Rescue your first friend",          t: s => s.rescues >= 1 },
+  { id: "r25",      icon: "🛟", name: "Rescue Squad",     need: "Rescue 25 friends",                 t: s => s.rescues >= 25 },
+  { id: "r100",     icon: "🚀", name: "Rescue Hero",      need: "Rescue 100 friends",                t: s => s.rescues >= 100 },
+  { id: "b5",       icon: "🧠", name: "Puzzle Rookie",    need: "Solve 5 Brain Challenges",          t: s => s.brains >= 5 },
+  { id: "b25",      icon: "🧩", name: "Puzzle Genius",    need: "Solve 25 Brain Challenges",         t: s => s.brains >= 25 },
+  { id: "streak5",  icon: "🔥", name: "On Fire",          need: "5 in a row on the first try",       t: s => s.bestStreak >= 5 },
+  { id: "streak10", icon: "⚡", name: "Unstoppable",      need: "10 in a row on the first try",      t: s => s.bestStreak >= 10 },
+  { id: "perfect",  icon: "🎯", name: "Perfect Level",    need: "Finish a level with no misses",     t: s => s.perfects >= 1 },
+  { id: "c250",     icon: "🪙", name: "Credit Collector", need: "Earn 250 credits",                  t: s => s.credits >= 250 },
+  { id: "c1000",    icon: "💎", name: "Credit Champion",  need: "Earn 1,000 credits",                t: s => s.credits >= 1000 },
+  { id: "lvl5",     icon: "🏅", name: "Level 5 Star",     need: "Reach level 5",                     t: s => s.maxLevel >= 5 },
+  { id: "lvl10",    icon: "🏆", name: "Level 10 Legend",  need: "Reach level 10",                    t: s => s.maxLevel >= 10 },
+];
+let save = { credits: 0, awards: [], rescues: 0, brains: 0, bestStreak: 0, perfects: 0, maxLevel: 1 };
+try { const s = JSON.parse(localStorage.getItem("sr_save")); if (s && typeof s === "object") save = Object.assign(save, s); } catch (e) {}
+function persist() { try { localStorage.setItem("sr_save", JSON.stringify(save)); } catch (e) {} }
+
+const awardQueue = [];
+let awardShowing = false;
+function earnAwards() {
+  for (const a of AWARDS) if (!save.awards.includes(a.id) && a.t(save)) { save.awards.push(a.id); awardQueue.push(a); }
+  persist(); refreshHome(); showNextAward();
+}
+function showNextAward() {
+  if (awardShowing || !awardQueue.length) return;
+  const a = awardQueue.shift();
+  awardShowing = true;
+  const el = $("awardpop");
+  el.innerHTML = `<span class="awicon">${a.icon}</span><div>New Award!<br>${a.name}</div>`;
+  el.classList.add("show");
+  sndLevel();
+  for (let i = 0; i < 2; i++) setTimeout(confetti, i * 300);
+  speak("New award! " + a.name + "!");
+  setTimeout(() => {
+    el.classList.remove("show");
+    awardShowing = false;
+    setTimeout(showNextAward, 450);
+  }, 3200);
+}
+function renderAwards() {
+  $("credsAw").textContent = `🪙 ${save.credits} credits`;
+  const g = $("awardgrid");
+  g.innerHTML = "";
+  AWARDS.forEach(a => {
+    const got = save.awards.includes(a.id);
+    const div = document.createElement("div");
+    div.className = "awcard " + (got ? "earned" : "locked");
+    div.innerHTML = `<div class="ic">${got ? a.icon : "🔒"}</div><div class="nm">${a.name}</div><div class="ds">${a.need}</div>`;
+    g.appendChild(div);
+  });
+}
+function refreshHome() {
+  $("trophies2").textContent = `🏆 My Trophies (${save.awards.length}/${AWARDS.length}) · 🪙 ${save.credits}`;
+}
+
 /* ============ game state ============ */
 let age = "A", stars = 0, level = 1, rescuedInLevel = 0, current = null, locked = false;
 let qNum = 0, isChallenge = false;
+let streak = 0, missedThis = false, mistakesThisLevel = 0;
 
 function startGame(a) {
   age = a; stars = 0; level = 1; rescuedInLevel = 0; qNum = 0;
+  streak = 0; missedThis = false; mistakesThisLevel = 0;
   $("start").classList.remove("on");
   $("game").classList.add("on");
   updateHud(); buildCrew(); nextQuestion();
@@ -514,6 +614,7 @@ function startGame(a) {
 function updateHud() {
   $("lvl").textContent = "Level " + level;
   $("stars").textContent = "⭐ " + stars;
+  $("creds").textContent = "🪙 " + save.credits;
 }
 
 function buildCrew() {
@@ -550,7 +651,9 @@ function nextQuestion() {
     b.onclick = () => answer(b, o);
     opts.appendChild(b);
   });
-  speakQuestion();
+  missedThis = false;
+  if (awardShowing) setTimeout(() => { if (!locked) speakQuestion(); }, 2800);
+  else speakQuestion();
   armReread();
 }
 
@@ -565,10 +668,19 @@ function answer(btn, val) {
     confetti();
     stars += isChallenge ? 2 : 1;
     rescuedInLevel++;
+    const firstTry = !missedThis;
+    streak = firstTry ? streak + 1 : 0;
+    save.bestStreak = Math.max(save.bestStreak, streak);
+    const gain = (isChallenge ? 25 : 10) + (streak >= 3 ? 5 : 0);
+    save.credits += gain;
+    save.rescues++;
+    if (isChallenge) save.brains++;
+    persist();
     updateHud();
     const cheer = pick(isChallenge ? BRAIN_CHEERS : CHEERS);
-    $("cheer").textContent = cheer;
+    $("cheer").textContent = `${cheer}  +${gain} 🪙`;
     speak(cleanSpeech(cheer));
+    earnAwards();
     $("bubble").classList.add("freed");
     setTimeout(() => {
       if (rescuedInLevel >= PER_LEVEL) levelUp();
@@ -577,6 +689,8 @@ function answer(btn, val) {
   } else {
     btn.classList.add("wrong");
     sndWrong();
+    missedThis = true;
+    mistakesThisLevel++;
     $("cheer").textContent = "Almost! Try again 💪";
     speak("Almost! Try again!");
     armReread();
@@ -584,6 +698,10 @@ function answer(btn, val) {
 }
 
 function levelUp() {
+  if (mistakesThisLevel === 0) save.perfects++;
+  save.maxLevel = Math.max(save.maxLevel, level + 1);
+  persist();
+  earnAwards();
   sndLevel();
   for (let i = 0; i < 3; i++) setTimeout(confetti, i * 300);
   $("newpal").textContent = PALS[(level * PER_LEVEL - 1) % PALS.length];
@@ -595,13 +713,33 @@ function levelUp() {
 
 $("go").onclick = () => {
   $("party").classList.remove("on");
-  level++; rescuedInLevel = 0;
+  level++; rescuedInLevel = 0; mistakesThisLevel = 0;
   updateHud(); buildCrew(); nextQuestion();
+};
+
+/* trophy room navigation */
+let awardsFrom = "start";
+function openAwards(from) {
+  awardsFrom = from;
+  renderAwards();
+  stopSpeech();
+  clearTimeout(rereadTimer);
+  $("start").classList.remove("on");
+  $("game").classList.remove("on");
+  $("awardscr").classList.add("on");
+}
+$("trophies").onclick = () => openAwards("game");
+$("trophies2").onclick = () => openAwards("start");
+$("awback").onclick = () => {
+  $("awardscr").classList.remove("on");
+  $(awardsFrom).classList.add("on");
+  if (awardsFrom === "game") { speakQuestion(); armReread(); }
 };
 
 $("home").onclick = () => {
   stopSpeech();
   clearTimeout(rereadTimer);
+  refreshHome();
   $("game").classList.remove("on");
   $("party").classList.remove("on");
   $("start").classList.add("on");
@@ -617,6 +755,7 @@ $("voice").onclick = () => {
   setVoiceBtn();
 };
 setVoiceBtn();
+refreshHome();
 
 document.querySelectorAll(".agecard").forEach(b => b.onclick = () => { initAudio(); startGame(b.dataset.age); });
 

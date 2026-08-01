@@ -20,6 +20,13 @@ bubbles — answer questions to pop the bubbles and rescue them all!
   numbers, more answer choices, and new question forms unlock (subtraction,
   division, lowercase letters, two-step word problems, countdown patterns).
   Question types are dealt from a shuffled deck so the same type never streaks.
+- **Credits & Trophy Room**: every rescue pays credits (10 normal, 25 for a
+  Brain Challenge, +5 streak bonus at 3-in-a-row on the first try). Twelve
+  named awards — First Rescue, On Fire, Puzzle Genius, Perfect Level, Credit
+  Champion, Level 10 Legend and more — pop in with a banner, fanfare, and
+  voice announcement when earned. Credits, awards, best streak, and top level
+  persist between visits (localStorage), viewable in the 🏆 Trophy Room from
+  the start screen or the in-game HUD.
 
 ## Learning content by age
 
