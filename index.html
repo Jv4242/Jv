@@ -83,6 +83,8 @@
     cursor: pointer; box-shadow: 0 3px 0 #d9b23c;
   }
   .hearbtn:active { transform: translateY(2px); box-shadow: 0 1px 0 #d9b23c; }
+  .hearbtn.speaking { animation: talkpulse 1s ease-in-out infinite; }
+  @keyframes talkpulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.18)} }
   .brain {
     display: none; width: max-content; margin: 0 auto 10px;
     background: linear-gradient(180deg, #ffe9a8, #ffd75e); color: #7a4a00;
@@ -224,13 +226,19 @@ function getVoice() {
     || vs.find(v => v.lang.startsWith("en")) || null;
 }
 function stopSpeech() { try { speechSynthesis.cancel(); } catch (e) {} }
+/* some browsers return an empty voice list until voiceschanged fires */
+try { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices(); } catch (e) {}
 function speak(text) {
   if (!voiceOn || !text) return;
   try {
-    speechSynthesis.cancel();
+    if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+    speechSynthesis.resume(); // iOS Safari can leave synthesis stuck in a paused state
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "en-US"; u.rate = 0.9; u.pitch = 1.1;
     const v = getVoice(); if (v) u.voice = v;
+    const btn = $("hear");
+    u.onstart = () => btn.classList.add("speaking");
+    u.onend = u.onerror = () => btn.classList.remove("speaking");
     speechSynthesis.speak(u);
   } catch (e) {}
 }
@@ -239,6 +247,12 @@ function speakQuestion() {
   let text = current.sp || current.q;
   if (isChallenge) text = "Brain challenge! " + text;
   speak(cleanSpeech(text));
+}
+/* if a question sits unanswered, read it aloud one more time */
+let rereadTimer = null;
+function armReread() {
+  clearTimeout(rereadTimer);
+  rereadTimer = setTimeout(() => { if (!locked && voiceOn) speakQuestion(); }, 9000);
 }
 
 /* ============ question generators ============ */
@@ -537,6 +551,7 @@ function nextQuestion() {
     opts.appendChild(b);
   });
   speakQuestion();
+  armReread();
 }
 
 function answer(btn, val) {
@@ -544,6 +559,7 @@ function answer(btn, val) {
   initAudio();
   if (val === current.a) {
     locked = true;
+    clearTimeout(rereadTimer);
     btn.classList.add("right");
     sndRight();
     confetti();
@@ -563,6 +579,7 @@ function answer(btn, val) {
     sndWrong();
     $("cheer").textContent = "Almost! Try again 💪";
     speak("Almost! Try again!");
+    armReread();
   }
 }
 
@@ -584,6 +601,7 @@ $("go").onclick = () => {
 
 $("home").onclick = () => {
   stopSpeech();
+  clearTimeout(rereadTimer);
   $("game").classList.remove("on");
   $("party").classList.remove("on");
   $("start").classList.add("on");
