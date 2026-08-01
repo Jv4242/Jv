@@ -5,14 +5,21 @@ bubbles — answer questions to pop the bubbles and rescue them all!
 
 ## The hook
 
-- **Rescue & collect**: every correct answer frees an animal friend that joins
-  your crew bar. Kids see the crew fill up in real time.
+- **Rescue & collect**: every correct answer frees a *named* friend — Bloop
+  the octopus, Sparkle the unicorn, Rexy the dino — announced by voice
+  ("You saved Zippy!") as they join the crew bar. Zuzu the alien guide 👽
+  stands beside the bubble and cheers or wobbles with every answer.
 - **Level up**: rescue 5 friends to complete a level and unlock a celebration
   with a brand-new friend, confetti, and a fanfare.
 - **No losing**: a wrong answer just wobbles and grays out — kids try again
   until they get it. Stars only go up.
-- **Brain Challenges**: every 3rd bubble is golden and holds a problem-solving
-  puzzle worth 2 stars — reasoning, not recall.
+- **Brain Challenges**: golden bubbles hold problem-solving questions worth
+  2 stars — reasoning, not recall.
+- **Interactive Puzzles**: every 5th bubble is purple and plays differently —
+  memory games (watch, then it hides!), tap-numbers-in-order, tap-all-the-
+  matches, whose-shadow-is-this, sort smallest-to-biggest, and tap-to-spell
+  words. Multi-tap gameplay, not just multiple choice. Worth 2 stars and 20
+  credits. A 🔥 streak counter appears in the HUD at 2+ first-try answers.
 - **Voice narration**: every question is read aloud (Web Speech API), so
   pre-readers always know what to do. A 🔊 button on the card repeats the
   question; a HUD toggle mutes the voice (remembered between visits).

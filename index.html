@@ -51,7 +51,12 @@
   .crewbar .saved { opacity: 1; animation: pop .45s; }
   @keyframes pop { 0%{transform:scale(0)} 70%{transform:scale(1.4)} 100%{transform:scale(1)} }
 
-  .bubblewrap { margin: 6px 0 2px; height: clamp(84px, 18vw, 120px); display:flex; align-items:center; justify-content:center; }
+  .bubblewrap { margin: 6px 0 2px; height: clamp(84px, 18vw, 120px); display:flex; align-items:center; justify-content:center; gap: 18px; }
+  #zuzu { font-size: clamp(2rem, 8vw, 2.8rem); transform-origin: bottom center; }
+  #zuzu.happy { animation: zhappy .7s; }
+  #zuzu.sad { animation: zsad .6s; }
+  @keyframes zhappy { 0%,100%{transform:scale(1)} 30%{transform:scale(1.35) rotate(-10deg)} 60%{transform:scale(1.15) rotate(8deg)} }
+  @keyframes zsad { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-14deg)} 75%{transform:rotate(14deg)} }
   .bubble {
     width: clamp(80px, 17vw, 112px); height: clamp(80px, 17vw, 112px);
     border-radius: 50%;
@@ -90,8 +95,16 @@
     background: linear-gradient(180deg, #ffe9a8, #ffd75e); color: #7a4a00;
     border-radius: 999px; padding: 5px 16px; font-size: .95rem; font-weight: bold;
   }
-  .qcard.challenge .brain { display: block; }
+  .qcard.challenge .brain, .qcard.puzzle .brain { display: block; }
   .qcard.challenge { outline: 3px solid #ffd75e; }
+  .qcard.puzzle { outline: 3px solid #c9a2ff; }
+  .qcard.puzzle .brain { background: linear-gradient(180deg, #e9d9ff, #c9a2ff); color: #4a2380; }
+  .bubble.puz {
+    background: radial-gradient(circle at 32% 30%, rgba(236,220,255,.95), rgba(190,140,255,.35) 45%, rgba(150,90,240,.25));
+    border-color: #c9a2ff;
+    box-shadow: 0 0 26px rgba(190,140,255,.6);
+  }
+  .opt.oops { animation: shake .4s; }
   .qtext { font-size: clamp(1.15rem, 4.6vw, 1.5rem); font-weight: bold; line-height: 1.35; min-height: 2.6em; display:flex; align-items:center; justify-content:center; }
   .qvisual { font-size: clamp(1.8rem, 7vw, 2.6rem); margin: 8px 0 4px; line-height: 1.4; word-spacing: 8px; }
   .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
@@ -112,6 +125,7 @@
   #party.on { display: flex; }
   .partycard { text-align: center; padding: 24px; }
   .partycard .newpal { font-size: 5rem; animation: pop .6s; }
+  .partycard .palname { font-size: 1.3rem; font-weight: bold; color: #ffd75e; margin-top: 4px; }
   .partycard h2 { font-size: 2rem; margin: 10px 0; }
   .partycard p { font-size: 1.15rem; margin-bottom: 20px; }
   .bigbtn {
@@ -160,7 +174,7 @@
 <div class="screen on" id="start">
   <div class="rocket">🚀</div>
   <h1 class="title">⭐ Star Rescue ⭐</h1>
-  <p class="tagline">Zuzu's space friends are stuck in bubbles!<br>Answer questions to pop the bubbles and rescue them all. 🛸<br>Watch for golden bubbles — Brain Challenges worth 2 ⭐!</p>
+  <p class="tagline">Zuzu's space friends are stuck in bubbles!<br>Answer questions to pop the bubbles and rescue them all. 🛸<br>Gold bubbles = 🧠 Brain Challenges · Purple bubbles = 🧩 Puzzles!</p>
   <div class="agegrid">
     <button class="agecard" data-age="A"><span class="big">🐣</span>Ages 3–4<small>colors · shapes · counting</small></button>
     <button class="agecard" data-age="B"><span class="big">🦊</span>Ages 5–6<small>letters · adding · patterns</small></button>
@@ -188,14 +202,15 @@
     <span class="pill" id="lvl">Level 1</span>
     <span class="pill" id="stars">⭐ 0</span>
     <span class="pill" id="creds">🪙 0</span>
+    <span class="pill" id="streakpill" style="display:none">🔥 0</span>
     <button id="trophies" title="Trophy Room">🏆</button>
     <button id="voice" title="Voice on/off">🔊</button>
   </div>
   <div class="crewbar" id="crew"></div>
-  <div class="bubblewrap"><div class="bubble" id="bubble">🐙</div></div>
+  <div class="bubblewrap"><div id="zuzu" title="Zuzu">👽</div><div class="bubble" id="bubble">🐙</div></div>
   <div class="qcard" id="qcard">
     <button class="hearbtn" id="hear" title="Hear the question">🔊</button>
-    <div class="brain">🧠 Brain Challenge — worth 2 ⭐</div>
+    <div class="brain" id="badge">🧠 Brain Challenge — worth 2 ⭐</div>
     <div class="qtext" id="qtext"></div>
     <div class="qvisual" id="qvisual"></div>
     <div class="opts" id="opts"></div>
@@ -207,6 +222,7 @@
 <div id="party">
   <div class="partycard">
     <div class="newpal" id="newpal">🐸</div>
+    <div class="palname" id="palname"></div>
     <h2 id="partytitle">Level Up!</h2>
     <p id="partymsg">You rescued a new friend!</p>
     <button class="bigbtn" id="go">Keep Rescuing! 🚀</button>
@@ -316,6 +332,7 @@ function speakQuestion() {
   if (!current) return;
   let text = current.sp || current.q;
   if (isChallenge) text = "Brain challenge! " + text;
+  else if (isPuzzle) text = "Puzzle time! " + text;
   speak(cleanSpeech(text));
 }
 /* if a question sits unanswered, read it aloud one more time */
@@ -505,7 +522,7 @@ function c56() { // ages 5-6: logic, patterns, riddles, story math
   }
 }
 
-const NAMES = ["Max","Zoe","Ali","Kai","Mia","Leo"];
+const NAMES = ["Bloop","Zippy","Momo","Rexy","Pip","Splash"];
 const RELS = [["taller","tallest","shortest"],["faster","fastest","slowest"],["older","oldest","youngest"]];
 const RIDDLES_C = [
   ["What has hands but cannot clap?","⏰ A clock",["🧤 Gloves","🐙 An octopus"]],
@@ -564,19 +581,87 @@ function c78() { // ages 7-8: missing numbers, word problems, deduction, riddles
 
 const GEN = { A: q34, B: q56, C: q78 };
 const CHAL = { A: c34, B: c56, C: c78 };
-const CHAL_EVERY = 3; // every 3rd question is a brain challenge
 const CHEERS = ["Amazing! 🎉", "You did it! ⭐", "Super smart! 🧠", "Wow! 🚀", "Great job! 🌟", "Fantastic! 🎈"];
 const BRAIN_CHEERS = ["Brain power! 🧠⚡", "Puzzle master! 🧩", "Super solver! 🕵️", "Big brain! 🧠🌟"];
-const PALS = ["🐙","🐸","🐼","🦄","🐨","🦖","🐧","🦋","🐬","🦉","🐯","🐰","🦕","🐳","🦜"];
+const PALS = [
+  ["🐙","Bloop"],["🐸","Zippy"],["🐼","Momo"],["🦄","Sparkle"],["🐨","Koko"],
+  ["🦖","Rexy"],["🐧","Waddles"],["🦋","Flutter"],["🐬","Splash"],["🦉","Hoot"],
+  ["🐯","Stripes"],["🐰","Hopper"],["🦕","Dino"],["🐳","Bubbles"],["🦜","Pip"],
+];
 const PER_LEVEL = 5;
+
+/* ============ puzzles (interactive: memory, tap-in-order, tap-all, shadows, spelling) ============ */
+const MULTI_B = [
+  ["Tap ALL the things that can fly!", ["🦅","🦋","🐝","🦜"], ["🐟","🐢","🚗","🍎"]],
+  ["Tap ALL the fruits!", ["🍎","🍌","🍇","🍓"], ["🐶","⚽","🚌","🧸"]],
+  ["Tap ALL the water animals!", ["🐟","🐙","🦈","🐬"], ["🐔","🐰","🌳","🚗"]],
+];
+function p34() { // ages 3-4
+  switch (drawType("pA", 4)) {
+    case 0: { const items = shuffle(ANIMALS).slice(0,3).map(a=>a[1]);
+      const [label, idx] = pick([["first",0],["in the middle",1],["last",2]]);
+      return { q: `Look and remember! Which one was ${label}?`, v: items.join("  "),
+        mem: { mask: "❓  ❓  ❓" }, opts: shuffle(items.slice()), a: items[idx] }; }
+    case 1: return { q: "Tap 1, 2, 3 in order!", v: "", opts: shuffle(["1","2","3"]), seq: ["1","2","3"] };
+    case 2: { const yes = shuffle(ANIMALS).slice(0,2).map(a=>a[1]);
+      const no = shuffle(["🍎","🚗","⚽","🍌"]).slice(0,2);
+      return { q: "Tap ALL the animals!", v: "", opts: shuffle([...yes, ...no]), multi: yes }; }
+    default: { const [, e] = pick(ANIMALS);
+      return { q: "Whose shadow is this?", v: `<span style="filter:brightness(0)">${e}</span>`,
+        opts: shuffle([e, ...shuffle(ANIMALS.filter(x=>x[1]!==e)).slice(0,2).map(x=>x[1])]), a: e }; }
+  }
+}
+function p56() { // ages 5-6
+  const d = diff();
+  switch (drawType("pB", 4)) {
+    case 0: { const pool = ANIMALS.concat([["sun","☀️"],["star","⭐"],["rainbow","🌈"]]);
+      const items = shuffle(pool).slice(0,4).map(a=>a[1]);
+      const [label, idx] = pick([["first",0],["second",1],["third",2],["last",3]]);
+      return { q: `Look and remember! Which one was ${label}?`, v: items.join("  "),
+        mem: { mask: "❓  ❓  ❓  ❓" }, opts: shuffle(items.slice()), a: items[idx] }; }
+    case 1: { const n = d === 0 ? 4 : 5;
+      const nums = Array.from({length: n}, (_, i) => String(i + 1));
+      return { q: `Tap the numbers in order, 1 to ${n}!`, v: "", opts: shuffle(nums.slice()), seq: nums }; }
+    case 2: { const [q, yes, no] = pick(MULTI_B);
+      const y = shuffle(yes).slice(0,2), w = shuffle(no).slice(0,2);
+      return { q, v: "", opts: shuffle([...y, ...w]), multi: y }; }
+    default: { const [, e] = pick(ANIMALS);
+      return { q: "Whose shadow is this?", v: `<span style="filter:brightness(0)">${e}</span>`,
+        opts: shuffle([e, ...shuffle(ANIMALS.filter(x=>x[1]!==e)).slice(0, d === 0 ? 2 : 3).map(x=>x[1])]), a: e }; }
+  }
+}
+function p78() { // ages 7-8
+  const d = diff();
+  switch (drawType("pC", 4)) {
+    case 0: { const hi = d === 0 ? 20 : 99;
+      const nums = []; while (nums.length < 4) { const n = 2 + rand(hi); if (!nums.includes(n)) nums.push(n); }
+      const shown = nums.slice(0,3), absent = nums[3];
+      return { q: "Remember the numbers! Which one was NOT there?", v: shown.join("   "),
+        mem: { mask: "❓   ❓   ❓" }, opts: shuffle(nums.map(String)), a: String(absent) }; }
+    case 1: { const hi = d === 0 ? 20 : 60;
+      const nums = []; while (nums.length < 4) { const n = 1 + rand(hi); if (!nums.includes(n)) nums.push(n); }
+      return { q: "Tap from SMALLEST to BIGGEST!", v: "", opts: shuffle(nums.map(String)),
+        seq: nums.slice().sort((a,b)=>a-b).map(String) }; }
+    case 2: { const evens = [], odds = [], hi = d === 0 ? 8 : 20;
+      while (evens.length < 2) { const n = 2 * (1 + rand(hi)); if (!evens.includes(n)) evens.push(n); }
+      while (odds.length < 2) { const n = 2 * (1 + rand(hi)) - 1; if (!odds.includes(n)) odds.push(n); }
+      return { q: "Tap ALL the even numbers!", v: "", opts: shuffle([...evens, ...odds].map(String)), multi: evens.map(String) }; }
+    default: { const word = pick(["CAT","DOG","SUN","STAR","FISH","FROG"]);
+      const letters = word.split(""), opts = letters.slice();
+      if (d >= 1) { let extra; do { extra = pick(ABC); } while (letters.includes(extra)); opts.push(extra); }
+      return { q: `Spell ${word}! Tap the letters in order.`, sp: `Spell the word ${word}! Tap the letters in order.`,
+        v: "", opts: shuffle(opts), seq: letters }; }
+  }
+}
+const PUZ = { A: p34, B: p56, C: p78 };
 
 /* ============ credits & awards (persist across visits) ============ */
 const AWARDS = [
   { id: "first",    icon: "🐣", name: "First Rescue",     need: "Rescue your first friend",          t: s => s.rescues >= 1 },
   { id: "r25",      icon: "🛟", name: "Rescue Squad",     need: "Rescue 25 friends",                 t: s => s.rescues >= 25 },
   { id: "r100",     icon: "🚀", name: "Rescue Hero",      need: "Rescue 100 friends",                t: s => s.rescues >= 100 },
-  { id: "b5",       icon: "🧠", name: "Puzzle Rookie",    need: "Solve 5 Brain Challenges",          t: s => s.brains >= 5 },
-  { id: "b25",      icon: "🧩", name: "Puzzle Genius",    need: "Solve 25 Brain Challenges",         t: s => s.brains >= 25 },
+  { id: "b5",       icon: "🧠", name: "Puzzle Rookie",    need: "Solve 5 challenges or puzzles",     t: s => s.brains >= 5 },
+  { id: "b25",      icon: "🧩", name: "Puzzle Genius",    need: "Solve 25 challenges or puzzles",    t: s => s.brains >= 25 },
   { id: "streak5",  icon: "🔥", name: "On Fire",          need: "5 in a row on the first try",       t: s => s.bestStreak >= 5 },
   { id: "streak10", icon: "⚡", name: "Unstoppable",      need: "10 in a row on the first try",      t: s => s.bestStreak >= 10 },
   { id: "perfect",  icon: "🎯", name: "Perfect Level",    need: "Finish a level with no misses",     t: s => s.perfects >= 1 },
@@ -650,8 +735,9 @@ try { speechSynthesis.onvoiceschanged = () => { speechSynthesis.getVoices(); ref
 
 /* ============ game state ============ */
 let age = "A", stars = 0, level = 1, rescuedInLevel = 0, current = null, locked = false;
-let qNum = 0, isChallenge = false;
+let qNum = 0, isChallenge = false, isPuzzle = false;
 let streak = 0, missedThis = false, mistakesThisLevel = 0;
+let seqPos = 0, multiFound = 0, memTimer = null;
 
 function startGame(a) {
   age = a; stars = 0; level = 1; rescuedInLevel = 0; qNum = 0;
@@ -665,7 +751,19 @@ function updateHud() {
   $("lvl").textContent = "Level " + level;
   $("stars").textContent = "⭐ " + stars;
   $("creds").textContent = "🪙 " + save.credits;
+  const sp = $("streakpill");
+  sp.style.display = streak >= 2 ? "" : "none";
+  sp.textContent = "🔥 " + streak;
 }
+
+function zuzuReact(good) {
+  const z = $("zuzu");
+  z.classList.remove("happy", "sad");
+  void z.offsetWidth;
+  z.classList.add(good ? "happy" : "sad");
+}
+
+function palNow() { return PALS[((level - 1) * PER_LEVEL + rescuedInLevel) % PALS.length]; }
 
 function buildCrew() {
   const crew = $("crew");
@@ -673,21 +771,29 @@ function buildCrew() {
   for (let i = 0; i < PER_LEVEL; i++) {
     const s = document.createElement("span");
     const pal = PALS[((level - 1) * PER_LEVEL + i) % PALS.length];
-    s.textContent = pal;
+    s.textContent = pal[0];
+    s.title = pal[1];
     s.className = i < rescuedInLevel ? "saved" : "slot";
     crew.appendChild(s);
   }
-  $("bubble").textContent = PALS[((level - 1) * PER_LEVEL + rescuedInLevel) % PALS.length];
+  $("bubble").textContent = palNow()[0];
   $("bubble").classList.remove("freed");
 }
 
 function nextQuestion() {
   locked = false;
   qNum++;
-  isChallenge = qNum % CHAL_EVERY === 0;
-  current = (isChallenge ? CHAL : GEN)[age]();
+  isPuzzle = qNum % 5 === 0;
+  isChallenge = !isPuzzle && qNum % 3 === 0;
+  seqPos = 0; multiFound = 0;
+  clearTimeout(memTimer);
+  current = (isPuzzle ? PUZ : isChallenge ? CHAL : GEN)[age]();
   $("qcard").classList.toggle("challenge", isChallenge);
+  $("qcard").classList.toggle("puzzle", isPuzzle);
+  $("badge").textContent = isPuzzle ? "🧩 Puzzle Time — worth 2 ⭐" : "🧠 Brain Challenge — worth 2 ⭐";
   $("bubble").classList.toggle("gold", isChallenge);
+  $("bubble").classList.toggle("puz", isPuzzle);
+  if (current.mem) memTimer = setTimeout(() => { $("qvisual").textContent = current.mem.mask; }, 3000);
   $("qtext").textContent = current.q;
   $("qvisual").innerHTML = current.v || "";
   $("cheer").textContent = "";
@@ -707,43 +813,81 @@ function nextQuestion() {
   armReread();
 }
 
+function markMiss() {
+  sndWrong();
+  zuzuReact(false);
+  missedThis = true;
+  mistakesThisLevel++;
+  $("cheer").textContent = "Almost! Try again 💪";
+  speak("Almost! Try again!");
+  armReread();
+}
+
+function solved() {
+  locked = true;
+  clearTimeout(rereadTimer);
+  clearTimeout(memTimer);
+  const pal = palNow();
+  sndRight();
+  confetti();
+  zuzuReact(true);
+  stars += (isChallenge || isPuzzle) ? 2 : 1;
+  rescuedInLevel++;
+  const firstTry = !missedThis;
+  streak = firstTry ? streak + 1 : 0;
+  save.bestStreak = Math.max(save.bestStreak, streak);
+  const gain = (isChallenge ? 25 : isPuzzle ? 20 : 10) + (streak >= 3 ? 5 : 0);
+  save.credits += gain;
+  save.rescues++;
+  if (isChallenge || isPuzzle) save.brains++;
+  persist();
+  updateHud();
+  const cheer = pick((isChallenge || isPuzzle) ? BRAIN_CHEERS : CHEERS);
+  $("cheer").textContent = `You saved ${pal[1]}! ${pal[0]} +${gain} 🪙`;
+  speak(cleanSpeech(`${cheer} You saved ${pal[1]}!`));
+  earnAwards();
+  $("bubble").classList.add("freed");
+  setTimeout(() => {
+    if (rescuedInLevel >= PER_LEVEL) levelUp();
+    else { buildCrew(); nextQuestion(); }
+  }, 1100);
+}
+
 function answer(btn, val) {
   if (locked) return;
   initAudio();
+  if (current.seq) { // tap in exact order
+    if (val === current.seq[seqPos] && !btn.classList.contains("right")) {
+      btn.classList.add("right");
+      seqPos++;
+      beep(440 + seqPos * 90, .12);
+      if (seqPos >= current.seq.length) solved();
+    } else {
+      btn.classList.add("oops");
+      setTimeout(() => btn.classList.remove("oops"), 450);
+      markMiss();
+    }
+    return;
+  }
+  if (current.multi) { // tap all matches, any order
+    if (current.multi.includes(val) && !btn.classList.contains("right")) {
+      btn.classList.add("right");
+      multiFound++;
+      beep(600, .12);
+      if (multiFound >= current.multi.length) solved();
+    } else if (!btn.classList.contains("right")) {
+      btn.classList.add("oops");
+      setTimeout(() => btn.classList.remove("oops"), 450);
+      markMiss();
+    }
+    return;
+  }
   if (val === current.a) {
-    locked = true;
-    clearTimeout(rereadTimer);
     btn.classList.add("right");
-    sndRight();
-    confetti();
-    stars += isChallenge ? 2 : 1;
-    rescuedInLevel++;
-    const firstTry = !missedThis;
-    streak = firstTry ? streak + 1 : 0;
-    save.bestStreak = Math.max(save.bestStreak, streak);
-    const gain = (isChallenge ? 25 : 10) + (streak >= 3 ? 5 : 0);
-    save.credits += gain;
-    save.rescues++;
-    if (isChallenge) save.brains++;
-    persist();
-    updateHud();
-    const cheer = pick(isChallenge ? BRAIN_CHEERS : CHEERS);
-    $("cheer").textContent = `${cheer}  +${gain} 🪙`;
-    speak(cleanSpeech(cheer));
-    earnAwards();
-    $("bubble").classList.add("freed");
-    setTimeout(() => {
-      if (rescuedInLevel >= PER_LEVEL) levelUp();
-      else { buildCrew(); nextQuestion(); }
-    }, 1100);
+    solved();
   } else {
     btn.classList.add("wrong");
-    sndWrong();
-    missedThis = true;
-    mistakesThisLevel++;
-    $("cheer").textContent = "Almost! Try again 💪";
-    speak("Almost! Try again!");
-    armReread();
+    markMiss();
   }
 }
 
@@ -754,11 +898,13 @@ function levelUp() {
   earnAwards();
   sndLevel();
   for (let i = 0; i < 3; i++) setTimeout(confetti, i * 300);
-  $("newpal").textContent = PALS[(level * PER_LEVEL - 1) % PALS.length];
+  const pal = PALS[(level * PER_LEVEL - 1) % PALS.length];
+  $("newpal").textContent = pal[0];
+  $("palname").textContent = `${pal[1]} is free!`;
   $("partytitle").textContent = `Level ${level} complete!`;
   $("partymsg").textContent = `You rescued ${PER_LEVEL} friends! ${"⭐".repeat(Math.min(level,5))}`;
   $("party").classList.add("on");
-  speak(`Level ${level} complete! You rescued ${PER_LEVEL} friends! Get ready, the next level is a little harder!`);
+  speak(`Level ${level} complete! ${pal[1]} and all their friends are free! Get ready, the next level is a little harder!`);
 }
 
 $("go").onclick = () => {
@@ -789,6 +935,7 @@ $("awback").onclick = () => {
 $("home").onclick = () => {
   stopSpeech();
   clearTimeout(rereadTimer);
+  clearTimeout(memTimer);
   refreshHome();
   $("game").classList.remove("on");
   $("party").classList.remove("on");
